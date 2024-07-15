@@ -9,7 +9,6 @@ pub mod traction;
 
 script!(ScriptGt6n);
 
-#[derive(Default)]
 pub struct ScriptGt6n {
     cockpit: Cockpit,
     traction: Traction,
@@ -27,5 +26,14 @@ impl Script for ScriptGt6n {
 
         self.cockpit.tick();
         self.traction.tick(&self.cockpit);
+    }
+}
+
+impl Default for ScriptGt6n {
+    fn default() -> Self {
+        Self {
+            cockpit: Cockpit::new(),
+            traction: Traction::default(),
+        }
     }
 }

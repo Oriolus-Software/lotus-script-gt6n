@@ -27,7 +27,8 @@ dependencies = [
 name = "gt6n"
 version = "0.1.0"
 dependencies = [
- "lotus-script",
+ "lotus-extra",
+ "lotus-script 0.3.0",
 ]
 
 [[package]]
@@ -45,6 +46,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "lotus-extra"
+version = "0.1.0"
+dependencies = [
+ "lotus-script 0.2.6",
+]
+
+[[package]]
+name = "lotus-script"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03272c6bce745356a155e21934e700b53bf54d628a979fcb2c0f7fa87dd6aee"
+dependencies = [
+ "glam",
+ "lotus-bindgen-macros",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

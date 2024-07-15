@@ -8,3 +8,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 lotus-script = "0.3.0"
+lotus-extra = { path = "../../lotus-extra" }

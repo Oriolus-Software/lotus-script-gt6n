@@ -1,17 +1,28 @@
 use lotus_script::{action::state, delta, var::VariableType};
 
-#[derive(Default)]
 pub struct Cockpit {
     richtungswender: Richtungswender,
     sollwertgeber: Sollwertgeber,
+    tacho: Tacho,
 }
 
 impl Cockpit {
+    pub fn new() -> Self {
+        Self {
+            richtungswender: Richtungswender::default(),
+            sollwertgeber: Sollwertgeber::default(),
+            tacho: Tacho::new(
+                "v_Axle_mps_0_1_abs".to_string(),
+                "v_Axle_mps_0_1".to_string(),
+            ),
+        }
+    }
+
     pub fn tick(&mut self) {
         self.input();
         self.richtungswender.tick();
         self.sollwertgeber.tick();
-        Tacho::calculate_value(f32::get("v_Axle_mps_0_1")).set("v_Axle_mps_0_1_abs");
+        self.tacho.tick();
     }
 
     fn input(&mut self) {
@@ -42,7 +53,7 @@ impl Cockpit {
     }
 
     pub fn target_brake(&self) -> f32 {
-        self.sollwertgeber.state.min(0.0)
+        (-self.sollwertgeber.state).max(0.0)
     }
 }
 
@@ -112,11 +123,20 @@ impl Sollwertgeber {
     }
 }
 
-#[derive(Default)]
-pub struct Tacho;
+pub struct Tacho {
+    tacho_variable: String,
+    axle_variable: String,
+}
 
 impl Tacho {
-    pub fn calculate_value(value: f32) -> f32 {
-        value.abs()
+    pub fn new(tacho_var: String, axle_var: String) -> Self {
+        Self {
+            tacho_variable: tacho_var,
+            axle_variable: axle_var,
+        }
+    }
+
+    fn tick(&mut self) {
+        (f32::get(&self.axle_variable).abs()).set(&self.tacho_variable);
     }
 }

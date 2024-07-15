@@ -7,7 +7,7 @@ pub struct Traction {}
 
 impl Traction {
     pub fn tick(&mut self, cockpit: &Cockpit) {
-        (cockpit.target_traction() * 200_000.0).set("M_Axle_N_0_0");
-        (cockpit.target_brake() * 300_000.0).set("MBrake_Axle_N_0_0");
+        (cockpit.target_traction() * 100_000.0).set("M_Axle_N_0_0");
+        (cockpit.target_brake() * 150_000.0).set("MBrake_Axle_N_0_0");
     }
 }
