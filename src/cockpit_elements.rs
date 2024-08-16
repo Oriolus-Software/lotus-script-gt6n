@@ -26,19 +26,19 @@ impl Cockpit {
     }
 
     fn input(&mut self) {
-        if state("ReverserPlus").is_just_pressed() {
+        if state("ReverserPlus").kind.is_just_pressed() {
             self.richtungswender.plus();
         }
-        if state("ReverserMinus").is_just_pressed() {
+        if state("ReverserMinus").kind.is_just_pressed() {
             self.richtungswender.minus();
         }
-        if state("Throttle").is_pressed() {
+        if state("Throttle").kind.is_pressed() {
             self.sollwertgeber.moving(1.0);
         }
-        if state("Brake").is_pressed() {
+        if state("Brake").kind.is_pressed() {
             self.sollwertgeber.moving(-1.0);
         }
-        if state("Neutral").is_pressed() {
+        if state("Neutral").kind.is_pressed() {
             self.sollwertgeber.set(0.0);
         }
     }
