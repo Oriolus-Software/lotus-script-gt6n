@@ -56,6 +56,7 @@ impl Inputable for Button {
                 1.0.set(anim_var);
             }
         }
+
         if action::state(&self.input_event).kind.is_just_released() {
             self.pressed = false;
 
