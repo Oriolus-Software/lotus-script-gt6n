@@ -28,7 +28,7 @@ name = "gt6n"
 version = "0.1.0"
 dependencies = [
  "lotus-extra",
- "lotus-script 0.4.2",
+ "lotus-script 0.4.4",
 ]
 
 [[package]]
@@ -36,6 +36,15 @@ name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
+
+[[package]]
+name = "lotus-bindgen-macros"
+version = "0.1.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "lotus-bindgen-macros"
@@ -62,7 +71,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b03272c6bce745356a155e21934e700b53bf54d628a979fcb2c0f7fa87dd6aee"
 dependencies = [
  "glam",
- "lotus-bindgen-macros",
+ "lotus-bindgen-macros 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -71,12 +80,11 @@ dependencies = [
 
 [[package]]
 name = "lotus-script"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67182f71b28f78e550b1e25518b533e17e4985fa17b29eecf21a84e83b381850"
+version = "0.4.4"
 dependencies = [
  "glam",
- "lotus-bindgen-macros",
+ "lotus-bindgen-macros 0.1.1",
+ "lotus-script-sys",
  "lotus-shared",
  "rmp-serde",
  "serde",
@@ -86,11 +94,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "lotus-shared"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7eb9171b7f24ca5a558ef041d76cbc0e0df20809d3a1d0399490fefc7480217c"
+name = "lotus-script-sys"
+version = "0.1.1"
 dependencies = [
+ "lotus-bindgen-macros 0.1.1",
+ "rmp-serde",
+ "serde",
+ "serde_repr",
+]
+
+[[package]]
+name = "lotus-shared"
+version = "0.2.4"
+dependencies = [
+ "glam",
+ "lotus-script-sys",
  "serde",
  "serde_json",
  "serde_repr",
@@ -209,9 +227,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.74"
+version = "2.0.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fceb41e3d546d0bd83421d3409b1460cc7444cd389341a4c880fe7a042cb3d7"
+checksum = "f6af063034fc1935ede7be0122941bafa9bacb949334d090b77ca98b5817c7d9"
 dependencies = [
  "proc-macro2",
  "quote",

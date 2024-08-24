@@ -1,10 +1,13 @@
-use cockpit_elements::Cockpit;
+use cockpit::Cockpit;
 use input::process_inputs;
-use lotus_script::{action::RegisterAction, delta, script, var::VariableType, Script};
+use lotus_script::{
+    action::RegisterAction, delta, message::BatterySwitch, script, var::VariableType, Script,
+};
 use traction::Traction;
 
-pub mod cockpit_elements;
+pub mod cockpit;
 pub mod input;
+pub mod tech_elements;
 pub mod traction;
 
 script!(ScriptGt6n);
@@ -15,8 +18,18 @@ pub struct ScriptGt6n {
     traction: Traction,
 }
 
+fn test_message_handle(msg: BatterySwitch) -> Result<(), Box<dyn std::error::Error>> {
+    msg.0
+        .then_some(1.0)
+        .unwrap_or_default()
+        .set("A_LM_Fernlicht");
+    Ok(())
+}
+
 impl Script for ScriptGt6n {
-    fn init(&mut self) {}
+    fn init(&mut self) {
+        1.0.set("Snd_Rumpeln_Weiche1");
+    }
 
     fn actions() -> Vec<RegisterAction> {
         Vec::new()
@@ -26,10 +39,28 @@ impl Script for ScriptGt6n {
         process_inputs();
 
         self.cockpit.tick();
-        self.traction.tick(&self.cockpit);
+        self.traction
+            .tick(self.cockpit.target_traction(), self.cockpit.target_brake());
 
         self.timer += delta();
-        ((self.timer).sin() * 0.5 + 0.5).set("A_LM_Fernlicht");
+
+        let speed = f32::get("v_Axle_mps_0_0").abs();
+
+        0.0.set("Snd_Rumpeln_Weiche1");
+        1.0.set("Snd_Rumpeln_Pitch");
+        100000000.0.set("Snd_Traction_A");
+        100000000.0.set("Snd_Traction_B");
+        100000000.0.set("Snd_Traction_C");
+        // 1.0.set("Snd_BrakeFlirr");
+
+        speed.set("v_Axle_mps_0_0_abs");
+        speed.set("v_Axle_mps_0_1_abs");
+        speed.set("v_Axle_mps_2_0_abs");
+        speed.set("v_Axle_mps_2_1_abs");
+    }
+
+    fn on_message(&mut self, msg: lotus_script::prelude::Message) {
+        msg.handle(test_message_handle).ok();
     }
 }
 

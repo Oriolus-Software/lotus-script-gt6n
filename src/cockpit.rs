@@ -1,9 +1,18 @@
-use lotus_script::{action::state, delta, var::VariableType};
+use lotus_script::{
+    action::state,
+    delta,
+    message::{BatterySwitch, MessageTarget},
+    prelude::Message,
+    var::VariableType,
+};
+
+use crate::tech_elements::{Button, Inputable};
 
 pub struct Cockpit {
     richtungswender: Richtungswender,
     sollwertgeber: Sollwertgeber,
     tacho: Tacho,
+    ts_lampentest: Button,
 }
 
 impl Cockpit {
@@ -15,6 +24,10 @@ impl Cockpit {
                 "v_Axle_mps_0_1_abs".to_string(),
                 "v_Axle_mps_0_1".to_string(),
             ),
+            ts_lampentest: Button::new("Lightcheck")
+                .with_sound_on("Snd_CP_A_BtnDn")
+                .with_sound_off("Snd_CP_A_BtnUp")
+                .with_animation("A_CP_TS_Lampentest"),
         }
     }
 
@@ -28,9 +41,11 @@ impl Cockpit {
     fn input(&mut self) {
         if state("ReverserPlus").kind.is_just_pressed() {
             self.richtungswender.plus();
+            Message::new(BatterySwitch(true)).send(MessageTarget::Broadcast);
         }
         if state("ReverserMinus").kind.is_just_pressed() {
             self.richtungswender.minus();
+            Message::new(BatterySwitch(false)).send(MessageTarget::Broadcast);
         }
         if state("Throttle").kind.is_pressed() {
             self.sollwertgeber.moving(1.0);
@@ -41,6 +56,8 @@ impl Cockpit {
         if state("Neutral").kind.is_pressed() {
             self.sollwertgeber.set(0.0);
         }
+
+        self.ts_lampentest.input();
     }
 
     pub fn target_traction(&self) -> f32 {
@@ -83,6 +100,7 @@ impl Richtungswender {
             RichtungswenderState::V => self.state = RichtungswenderState::R,
             _ => {}
         }
+        true.set("Snd_Door_1_Open_Start");
     }
 
     pub fn minus(&mut self) {
@@ -92,6 +110,7 @@ impl Richtungswender {
             RichtungswenderState::R => self.state = RichtungswenderState::V,
             _ => {}
         }
+        false.set("Snd_Door_1_Open_Start");
     }
 
     pub fn angle(&self) -> f32 {
@@ -129,10 +148,10 @@ pub struct Tacho {
 }
 
 impl Tacho {
-    pub fn new(tacho_var: String, axle_var: String) -> Self {
+    pub fn new(tacho_var: impl Into<String>, axle_var: impl Into<String>) -> Self {
         Self {
-            tacho_variable: tacho_var,
-            axle_variable: axle_var,
+            tacho_variable: tacho_var.into(),
+            axle_variable: axle_var.into(),
         }
     }
 

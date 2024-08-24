@@ -7,5 +7,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-lotus-script = "0.4"
+lotus-script = { path = "../../script-rs/lotus-script" }
 lotus-extra = { path = "../../lotus-extra" }
