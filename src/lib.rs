@@ -40,7 +40,7 @@ impl Script for ScriptGt6n {
 
         self.cockpit.tick();
         self.traction
-            .tick(self.cockpit.target_traction(), self.cockpit.target_brake());
+            .apply(self.cockpit.target_traction(), self.cockpit.target_brake());
 
         self.timer += delta();
 
@@ -59,7 +59,7 @@ impl Script for ScriptGt6n {
         speed.set("v_Axle_mps_2_1_abs");
     }
 
-    fn on_message(&mut self, msg: lotus_script::prelude::Message) {
+    fn on_message(&mut self, msg: lotus_script::message::Message) {
         msg.handle(test_message_handle).ok();
     }
 }
