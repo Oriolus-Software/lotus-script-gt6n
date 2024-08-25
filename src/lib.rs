@@ -1,7 +1,14 @@
 use cockpit::Cockpit;
 use input::process_inputs;
 use lotus_script::{
-    action::RegisterAction, delta, message::BatterySwitch, script, var::VariableType, Script,
+    action::RegisterAction,
+    delta,
+    graphics::textures::{self, Texture, TextureCreationOptions},
+    math::UVec2,
+    message::BatterySwitch,
+    script,
+    var::VariableType,
+    Script,
 };
 use traction::Traction;
 
@@ -29,6 +36,34 @@ fn test_message_handle(msg: BatterySwitch) -> Result<(), Box<dyn std::error::Err
 impl Script for ScriptGt6n {
     fn init(&mut self) {
         1.0.set("Snd_Rumpeln_Weiche1");
+
+        // let vardiewirunbedingtbrauchen = ContentId {
+        //     user_id: 1000,
+        //     sub_id: 300008,
+        //     version: 0.0,
+        // };
+
+        //vardiewirunbedingtbrauchen.set("TexID_veh_number_black");
+        // vardiewirunbedingtbrauchen.set("TexID_veh_number_white");
+
+        let mut t = Texture::create(TextureCreationOptions {
+            width: 256,
+            height: 256,
+            data: None,
+        });
+
+        t.apply_to("TexID_veh_number_black");
+
+        t.add_action(textures::TextureAction::DrawRect(
+            UVec2 { x: 20, y: 20 },
+            UVec2 { x: 200, y: 200 },
+            lotus_script::graphics::Color {
+                r: 200,
+                g: 255,
+                b: 0,
+                a: 255,
+            },
+        ))
     }
 
     fn actions() -> Vec<RegisterAction> {
