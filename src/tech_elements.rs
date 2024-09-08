@@ -1,72 +1,78 @@
-use lotus_script::{action, var::VariableType};
+use lotus_rt::{spawn, wait};
+use lotus_script::var::VariableType;
 
-pub trait Tickable {
-    fn tick(&mut self);
+pub fn add_button(prop: ButtonProperties) {
+    spawn(async move {
+        loop {
+            wait::just_pressed(prop.input_event.clone().as_str()).await;
+            if let Some(ref variable) = prop.animation_var {
+                1.0.set(variable);
+            }
+            if let Some(ref sound) = prop.sound_on {
+                true.set(sound);
+            }
+            wait::just_released(prop.input_event.clone().as_str()).await;
+            if let Some(ref variable) = prop.animation_var {
+                0.0.set(variable);
+            }
+            if let Some(ref sound) = prop.sound_off {
+                true.set(sound);
+            }
+        }
+    });
 }
 
-pub trait Inputable {
-    fn input(&mut self);
-}
-
-pub struct Button {
-    pressed: bool,
-    input_event: String,
-    animation_var: Option<String>,
-    sound_on: Option<String>,
-    sound_off: Option<String>,
-}
-
-impl Button {
-    pub fn new(input_event: impl Into<String>) -> Self {
-        Self {
-            pressed: false,
-            input_event: input_event.into(),
-            animation_var: None,
-            sound_on: None,
-            sound_off: None,
+pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
+    fn set_on(target: f32, prop: &ButtonTwoSidedSpringLoaded) {
+        if let Some(ref variable) = prop.animation_var {
+            target.set(variable);
+        }
+        if let Some(ref sound) = prop.sound_on {
+            true.set(sound);
         }
     }
 
-    pub fn with_sound_on(mut self, sound_on: impl Into<String>) -> Self {
-        self.sound_on = Some(sound_on.into());
-        self
+    fn set_off(prop: &ButtonTwoSidedSpringLoaded) {
+        if let Some(ref variable) = prop.animation_var {
+            0.0.set(variable);
+        }
+        if let Some(ref sound) = prop.sound_off {
+            true.set(sound);
+        }
     }
 
-    pub fn with_sound_off(mut self, sound_off: impl Into<String>) -> Self {
-        self.sound_off = Some(sound_off.into());
-        self
-    }
+    let p = prop.clone();
+    spawn(async move {
+        loop {
+            wait::just_pressed(p.input_event_plus.clone().as_str()).await;
+            set_on(1.0, &p);
+            wait::just_released(p.input_event_plus.clone().as_str()).await;
+            set_off(&p);
+        }
+    });
 
-    pub fn with_animation(mut self, animation_var: impl Into<String>) -> Self {
-        self.animation_var = Some(animation_var.into());
-        self
-    }
+    spawn(async move {
+        loop {
+            wait::just_pressed(prop.input_event_minus.clone().as_str()).await;
+            set_on(-1.0, &prop);
+            wait::just_released(prop.input_event_minus.clone().as_str()).await;
+            set_off(&prop);
+        }
+    });
 }
 
-impl Inputable for Button {
-    fn input(&mut self) {
-        if action::state(&self.input_event).kind.is_just_pressed() {
-            self.pressed = true;
+pub struct ButtonProperties {
+    pub input_event: String,
+    pub animation_var: Option<String>,
+    pub sound_on: Option<String>,
+    pub sound_off: Option<String>,
+}
 
-            if let Some(sound_on) = &self.sound_on {
-                true.set(sound_on);
-            }
-
-            if let Some(anim_var) = &self.animation_var {
-                1.0.set(anim_var);
-            }
-        }
-
-        if action::state(&self.input_event).kind.is_just_released() {
-            self.pressed = false;
-
-            if let Some(sound_off) = &self.sound_off {
-                true.set(sound_off)
-            }
-
-            if let Some(anim_var) = &self.animation_var {
-                0.0.set(anim_var);
-            }
-        }
-    }
+#[derive(Clone)]
+pub struct ButtonTwoSidedSpringLoaded {
+    pub input_event_plus: String,
+    pub input_event_minus: String,
+    pub animation_var: Option<String>,
+    pub sound_on: Option<String>,
+    pub sound_off: Option<String>,
 }

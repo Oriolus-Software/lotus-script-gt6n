@@ -1,16 +1,10 @@
-use cockpit::Cockpit;
-use input::process_inputs;
-use lotus_script::{
-    action::RegisterAction,
-    delta,
-    graphics::textures::{self, Texture, TextureCreationOptions},
-    math::UVec2,
-    message::BatterySwitch,
-    script,
-    var::VariableType,
-    Script,
+use cockpit::{add_richtungswender, add_sollwertgeber, RichtungswenderState};
+use lotus_rt::sync::watch;
+use lotus_script::{script, var::VariableType, Script};
+use tech_elements::{
+    add_button, add_button_twosided_springloaded, ButtonProperties, ButtonTwoSidedSpringLoaded,
 };
-use traction::Traction;
+use traction::add_traction;
 
 pub mod cockpit;
 pub mod input;
@@ -19,23 +13,49 @@ pub mod traction;
 
 script!(ScriptGt6n);
 
-pub struct ScriptGt6n {
-    timer: f32,
-    cockpit: Cockpit,
-    traction: Traction,
+#[derive(Default)]
+pub struct ScriptGt6n {}
+
+struct ReceiverFromCockpit {
+    richtungswender: watch::Receiver<RichtungswenderState>,
+    sollwertgeber: watch::Receiver<f32>,
 }
 
-fn test_message_handle(msg: BatterySwitch) -> Result<(), Box<dyn std::error::Error>> {
-    msg.0
-        .then_some(1.0)
-        .unwrap_or_default()
-        .set("A_LM_Fernlicht");
-    Ok(())
+fn add_cockpit() -> ReceiverFromCockpit {
+    let (rw_lock_t, rw_lock_r) = lotus_rt::sync::watch::channel(false);
+
+    let richtungswender = add_richtungswender(rw_lock_r);
+    let sollwertgeber = add_sollwertgeber(richtungswender.clone(), rw_lock_t);
+
+    add_button_twosided_springloaded(ButtonTwoSidedSpringLoaded {
+        input_event_plus: "HighVoltageMainSwitchOn".into(),
+        input_event_minus: "HighVoltageMainSwitchOff".into(),
+        animation_var: Some("A_CP_SW_Hauptschalter".into()),
+        sound_on: Some("Snd_CP_A_RotBtnOn".into()),
+        sound_off: Some("Snd_CP_A_RotBtnOff".into()),
+    });
+
+    add_button(ButtonProperties {
+        input_event: "Lightcheck".into(),
+        animation_var: Some("A_CP_TS_Lampentest".into()),
+        sound_on: Some("Snd_CP_A_BtnDn".into()),
+        sound_off: Some("Snd_CP_A_BtnUp".into()),
+    });
+
+    ReceiverFromCockpit {
+        richtungswender,
+        sollwertgeber,
+    }
 }
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
-        1.0.set("Snd_Rumpeln_Weiche1");
+        let cockpit_receiver = add_cockpit();
+
+        add_traction(
+            cockpit_receiver.sollwertgeber,
+            cockpit_receiver.richtungswender,
+        );
 
         // let vardiewirunbedingtbrauchen = ContentId {
         //     user_id: 1000,
@@ -43,68 +63,60 @@ impl Script for ScriptGt6n {
         //     version: 0.0,
         // };
 
-        //vardiewirunbedingtbrauchen.set("TexID_veh_number_black");
         // vardiewirunbedingtbrauchen.set("TexID_veh_number_white");
 
-        let mut t = Texture::create(TextureCreationOptions {
-            width: 256,
-            height: 256,
-            data: None,
-        });
+        // let mut t = Texture::create(TextureCreationOptions {
+        //     width: 256,
+        //     height: 256,
+        //     data: None,
+        // });
 
-        t.apply_to("TexID_veh_number_black");
+        // t.apply_to("TexID_veh_number_black");
 
-        t.add_action(textures::TextureAction::DrawRect(
-            UVec2 { x: 20, y: 20 },
-            UVec2 { x: 200, y: 200 },
-            lotus_script::graphics::Color {
-                r: 200,
-                g: 255,
-                b: 0,
-                a: 255,
-            },
-        ))
+        // t.add_action(textures::TextureAction::DrawRect(
+        //     UVec2 { x: 20, y: 20 },
+        //     UVec2 { x: 200, y: 200 },
+        //     lotus_script::graphics::Color {
+        //         r: 200,
+        //         g: 255,
+        //         b: 0,
+        //         a: 255,
+        //     },
+        // ))
     }
 
-    fn actions() -> Vec<RegisterAction> {
-        Vec::new()
-    }
+    // fn actions() -> Vec<RegisterAction> {
+    //     Vec::new()
+    // }
 
     fn tick(&mut self) {
-        process_inputs();
+        // process_inputs();
 
-        self.cockpit.tick();
-        self.traction
-            .apply(self.cockpit.target_traction(), self.cockpit.target_brake());
+        lotus_rt::tick();
 
-        self.timer += delta();
+        (f32::get("v_Axle_mps_0_1").abs()).set("v_Axle_mps_0_1_abs");
 
-        let speed = f32::get("v_Axle_mps_0_0").abs();
+        // self.traction
+        //     .apply(self.cockpit.target_traction(), self.cockpit.target_brake());
 
-        0.0.set("Snd_Rumpeln_Weiche1");
-        1.0.set("Snd_Rumpeln_Pitch");
-        100000000.0.set("Snd_Traction_A");
-        100000000.0.set("Snd_Traction_B");
-        100000000.0.set("Snd_Traction_C");
+        // self.timer += delta();
+
+        // let speed = f32::get("v_Axle_mps_0_0").abs();
+
+        // 0.0.set("Snd_Rumpeln_Weiche1");
+        // 1.0.set("Snd_Rumpeln_Pitch");
+        // 100000000.0.set("Snd_Traction_A");
+        // 100000000.0.set("Snd_Traction_B");
+        // 100000000.0.set("Snd_Traction_C");
         // 1.0.set("Snd_BrakeFlirr");
 
-        speed.set("v_Axle_mps_0_0_abs");
-        speed.set("v_Axle_mps_0_1_abs");
-        speed.set("v_Axle_mps_2_0_abs");
-        speed.set("v_Axle_mps_2_1_abs");
+        // speed.set("v_Axle_mps_0_0_abs");
+        // speed.set("v_Axle_mps_0_1_abs");
+        // speed.set("v_Axle_mps_2_0_abs");
+        // speed.set("v_Axle_mps_2_1_abs");
     }
 
-    fn on_message(&mut self, msg: lotus_script::message::Message) {
-        msg.handle(test_message_handle).ok();
-    }
-}
-
-impl Default for ScriptGt6n {
-    fn default() -> Self {
-        Self {
-            cockpit: Cockpit::new(),
-            traction: Traction::default(),
-            timer: 0.0,
-        }
-    }
+    // fn on_message(&mut self, msg: lotus_script::message::Message) {
+    //     msg.handle(test_message_handle).ok();
+    // }
 }
