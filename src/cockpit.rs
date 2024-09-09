@@ -2,7 +2,7 @@ use lotus_rt::spawn;
 use lotus_script::log;
 use lotus_script::{time, var::VariableType};
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub enum RichtungswenderState {
     #[default]
     O,

@@ -8,6 +8,7 @@ use traction::add_traction;
 
 pub mod cockpit;
 pub mod input;
+pub mod standard_elements;
 pub mod tech_elements;
 pub mod traction;
 
