@@ -1,5 +1,53 @@
+use crate::tech_elements::{
+    add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoaded,
+};
 use lotus_rt::spawn;
+use lotus_rt::sync::watch;
 use lotus_script::{time, var::VariableType};
+
+use crate::tech_elements::add_button_twosided_springloaded;
+
+pub struct ReceiverFromCockpit {
+    pub richtungswender: watch::Receiver<RichtungswenderState>,
+    pub sollwertgeber: watch::Receiver<f32>,
+}
+
+pub struct SenderToCockpit {
+    pub federspeicher: watch::Sender<bool>,
+}
+
+pub fn add_cockpit() -> (ReceiverFromCockpit, SenderToCockpit) {
+    let (rw_lock_t, rw_lock_r) = lotus_rt::sync::watch::channel(false);
+    let (_, voltage_r) = lotus_rt::sync::watch::channel(1.0);
+
+    let richtungswender = add_richtungswender(rw_lock_r);
+    let sollwertgeber = add_sollwertgeber(richtungswender.clone(), rw_lock_t);
+
+    add_button_twosided_springloaded(ButtonTwoSidedSpringLoaded {
+        input_event_plus: "HighVoltageMainSwitchOn".into(),
+        input_event_minus: "HighVoltageMainSwitchOff".into(),
+        animation_var: Some("A_CP_SW_Hauptschalter".into()),
+        sound_on: Some("Snd_CP_A_RotBtnOn".into()),
+        sound_off: Some("Snd_CP_A_RotBtnOff".into()),
+    });
+
+    let lightcheck = add_button(ButtonProperties {
+        input_event: "Lightcheck".into(),
+        animation_var: Some("A_CP_TS_Lampentest".into()),
+        sound_on: Some("Snd_CP_A_BtnDn".into()),
+        sound_off: Some("Snd_CP_A_BtnUp".into()),
+    });
+
+    let federspeicher = add_indicator_light("A_LM_FSp".into(), Some(lightcheck.clone()), voltage_r);
+
+    (
+        ReceiverFromCockpit {
+            richtungswender,
+            sollwertgeber,
+        },
+        SenderToCockpit { federspeicher },
+    )
+}
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum RichtungswenderState {

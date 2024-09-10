@@ -1,15 +1,12 @@
-use cockpit::{add_richtungswender, add_sollwertgeber, RichtungswenderState};
-use lotus_rt::sync::watch;
+use cockpit::add_cockpit;
 use lotus_script::{script, var::VariableType, Script};
-use tech_elements::{
-    add_button, add_button_twosided_springloaded, add_indicator_light, ButtonProperties,
-    ButtonTwoSidedSpringLoaded,
-};
+use systems_interface::{add_systems_interface, InterfaceChannels};
 use traction::add_traction;
 
 pub mod cockpit;
 pub mod input;
 pub mod standard_elements;
+pub mod systems_interface;
 pub mod tech_elements;
 pub mod traction;
 
@@ -18,57 +15,20 @@ script!(ScriptGt6n);
 #[derive(Default)]
 pub struct ScriptGt6n {}
 
-struct ReceiverFromCockpit {
-    richtungswender: watch::Receiver<RichtungswenderState>,
-    sollwertgeber: watch::Receiver<f32>,
-}
-
-struct SenderToCockpit {
-    federspeicher: watch::Sender<bool>,
-}
-
-fn add_cockpit() -> (ReceiverFromCockpit, SenderToCockpit) {
-    let (rw_lock_t, rw_lock_r) = lotus_rt::sync::watch::channel(false);
-    let (_, voltage_r) = lotus_rt::sync::watch::channel(1.0);
-
-    let richtungswender = add_richtungswender(rw_lock_r);
-    let sollwertgeber = add_sollwertgeber(richtungswender.clone(), rw_lock_t);
-
-    add_button_twosided_springloaded(ButtonTwoSidedSpringLoaded {
-        input_event_plus: "HighVoltageMainSwitchOn".into(),
-        input_event_minus: "HighVoltageMainSwitchOff".into(),
-        animation_var: Some("A_CP_SW_Hauptschalter".into()),
-        sound_on: Some("Snd_CP_A_RotBtnOn".into()),
-        sound_off: Some("Snd_CP_A_RotBtnOff".into()),
-    });
-
-    let lightcheck = add_button(ButtonProperties {
-        input_event: "Lightcheck".into(),
-        animation_var: Some("A_CP_TS_Lampentest".into()),
-        sound_on: Some("Snd_CP_A_BtnDn".into()),
-        sound_off: Some("Snd_CP_A_BtnUp".into()),
-    });
-
-    let federspeicher = add_indicator_light("A_LM_FSp".into(), Some(lightcheck.clone()), voltage_r);
-
-    (
-        ReceiverFromCockpit {
-            richtungswender,
-            sollwertgeber,
-        },
-        SenderToCockpit { federspeicher },
-    )
-}
-
 impl Script for ScriptGt6n {
     fn init(&mut self) {
         let (cockpit_receiver, cockpit_sender) = add_cockpit();
 
         add_traction(
-            cockpit_receiver.sollwertgeber,
-            cockpit_receiver.richtungswender,
-            cockpit_sender.federspeicher,
+            cockpit_receiver.sollwertgeber.clone(),
+            cockpit_receiver.richtungswender.clone(),
+            cockpit_sender.federspeicher.clone(),
         );
+
+        add_systems_interface(InterfaceChannels {
+            cockpit_receiver,
+            cockpit_sender,
+        });
 
         // let vardiewirunbedingtbrauchen = ContentId {
         //     user_id: 1000,
