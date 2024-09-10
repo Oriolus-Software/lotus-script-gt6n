@@ -28,6 +28,7 @@ impl TractionAndBrakeUnitState {
 pub fn add_traction(
     rx_sollwertgeber: lotus_rt::sync::watch::Receiver<f32>,
     rx_richtungswender: lotus_rt::sync::watch::Receiver<RichtungswenderState>,
+    tx_federspeicher: lotus_rt::sync::watch::Sender<bool>,
 ) {
     let mut rx_wr = rx_richtungswender.clone();
     let mut rx_swg = rx_sollwertgeber.clone();
@@ -136,7 +137,7 @@ pub fn add_traction(
                 }
 
                 // Federspeicherbremse fehlt:
-                u.curr_brake_force = target_pneu_brake;
+                u.curr_brake_force = target_pneu_brake * MAXBRAKEFORCE_N;
             }
 
             units[0].curr_traction_force.set("M_Axle_N_0_1");

@@ -2,7 +2,8 @@ use cockpit::{add_richtungswender, add_sollwertgeber, RichtungswenderState};
 use lotus_rt::sync::watch;
 use lotus_script::{script, var::VariableType, Script};
 use tech_elements::{
-    add_button, add_button_twosided_springloaded, ButtonProperties, ButtonTwoSidedSpringLoaded,
+    add_button, add_button_twosided_springloaded, add_indicator_light, ButtonProperties,
+    ButtonTwoSidedSpringLoaded,
 };
 use traction::add_traction;
 
@@ -22,8 +23,13 @@ struct ReceiverFromCockpit {
     sollwertgeber: watch::Receiver<f32>,
 }
 
-fn add_cockpit() -> ReceiverFromCockpit {
+struct SenderToCockpit {
+    federspeicher: watch::Sender<bool>,
+}
+
+fn add_cockpit() -> (ReceiverFromCockpit, SenderToCockpit) {
     let (rw_lock_t, rw_lock_r) = lotus_rt::sync::watch::channel(false);
+    let (_, voltage_r) = lotus_rt::sync::watch::channel(1.0);
 
     let richtungswender = add_richtungswender(rw_lock_r);
     let sollwertgeber = add_sollwertgeber(richtungswender.clone(), rw_lock_t);
@@ -36,26 +42,32 @@ fn add_cockpit() -> ReceiverFromCockpit {
         sound_off: Some("Snd_CP_A_RotBtnOff".into()),
     });
 
-    add_button(ButtonProperties {
+    let lightcheck = add_button(ButtonProperties {
         input_event: "Lightcheck".into(),
         animation_var: Some("A_CP_TS_Lampentest".into()),
         sound_on: Some("Snd_CP_A_BtnDn".into()),
         sound_off: Some("Snd_CP_A_BtnUp".into()),
     });
 
-    ReceiverFromCockpit {
-        richtungswender,
-        sollwertgeber,
-    }
+    let federspeicher = add_indicator_light("A_LM_FSp".into(), Some(lightcheck.clone()), voltage_r);
+
+    (
+        ReceiverFromCockpit {
+            richtungswender,
+            sollwertgeber,
+        },
+        SenderToCockpit { federspeicher },
+    )
 }
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
-        let cockpit_receiver = add_cockpit();
+        let (cockpit_receiver, cockpit_sender) = add_cockpit();
 
         add_traction(
             cockpit_receiver.sollwertgeber,
             cockpit_receiver.richtungswender,
+            cockpit_sender.federspeicher,
         );
 
         // let vardiewirunbedingtbrauchen = ContentId {

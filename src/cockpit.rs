@@ -1,5 +1,4 @@
 use lotus_rt::spawn;
-use lotus_script::log;
 use lotus_script::{time, var::VariableType};
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -100,56 +99,68 @@ pub fn add_sollwertgeber(
     let (mode_t, mode_r) = lotus_rt::sync::watch::channel(SollwertgeberMode::Neutral);
     let (notch_t, notch_r) = lotus_rt::sync::watch::channel(SollwertgeberNotch::Neutral);
 
-    // fn release(p_r: lotus_rt::sync::watch::Receiver<f32>,
-    //     sp_t: lotus_rt::sync::watch::Sender<f32>,
-    //     md_r:
-    // ){}
-    //     let pos = *p_r.borrow();
-    //     let not_near_neutral = !(-0.1..0.1).contains(&pos);
-    //     match *md_r.borrow() {
-    //         SollwertgeberMode::Throttle | SollwertgeberMode::Brake => {
-    //             if not_near_neutral {
-    //                 tg_t.send(pos).unwrap();
-    //                 sp_t.send(0.0).unwrap();
-    //             } else if *tg_r.borrow() > 0.0 {
-    //                 tg_t.send(0.1).unwrap();
-    //             } else {
-    //                 tg_t.send(-0.1).unwrap();
-    //             }
-    //         }
-    //         _ => {}
-    //     }
-    //     lotus_script::info!("rw locked = {}", not_near_neutral);
-    //     rw_lock.send(not_near_neutral).unwrap();
-    // }
+    fn release(
+        p_r: &lotus_rt::sync::watch::Receiver<f32>,
+        sp_t: &lotus_rt::sync::watch::Sender<f32>,
+        md_r: &lotus_rt::sync::watch::Receiver<SollwertgeberMode>,
+        rw_lock: &lotus_rt::sync::watch::Sender<bool>,
+        tg_t: &lotus_rt::sync::watch::Sender<f32>,
+        tg_r: &lotus_rt::sync::watch::Receiver<f32>,
+    ) {
+        let pos = *p_r.borrow();
+        let not_near_neutral = !(-0.1..0.1).contains(&pos);
+        match *md_r.borrow() {
+            SollwertgeberMode::Throttle | SollwertgeberMode::Brake => {
+                if not_near_neutral {
+                    tg_t.send(pos).unwrap();
+                    sp_t.send(0.0).unwrap();
+                } else if *tg_r.borrow() > 0.0 {
+                    tg_t.send(0.1).unwrap();
+                } else {
+                    tg_t.send(-0.1).unwrap();
+                }
+            }
+            _ => {}
+        }
+        rw_lock.send(not_near_neutral).unwrap();
+    }
 
     let p_r = position_r.clone();
     let sp_t = speed_t.clone();
     let md_r = mode_r.clone();
     let tg_r = target_r.clone();
     let tg_t = target_t.clone();
+    let rw_l = rw_lock.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_released("Throttle").await;
-            lotus_script::info!("release future awaken");
-            // release();
-            let pos = *p_r.borrow();
-            let not_near_neutral = !(-0.1..0.1).contains(&pos);
-            match *md_r.borrow() {
-                SollwertgeberMode::Throttle | SollwertgeberMode::Brake => {
-                    if not_near_neutral {
-                        tg_t.send(pos).unwrap();
-                        sp_t.send(0.0).unwrap();
-                    } else if *tg_r.borrow() > 0.0 {
-                        tg_t.send(0.1).unwrap();
-                    } else {
-                        tg_t.send(-0.1).unwrap();
-                    }
-                }
-                _ => {}
-            }
-            lotus_script::info!("rw locked = {}", not_near_neutral);
-            rw_lock.send(not_near_neutral).unwrap();
+            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
+        }
+    });
+
+    let p_r = position_r.clone();
+    let sp_t = speed_t.clone();
+    let md_r = mode_r.clone();
+    let tg_r = target_r.clone();
+    let tg_t = target_t.clone();
+    let rw_l = rw_lock.clone();
+    spawn(async move {
+        loop {
+            lotus_rt::wait::just_released("Brake").await;
+            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
+        }
+    });
+
+    let p_r = position_r.clone();
+    let sp_t = speed_t.clone();
+    let md_r = mode_r.clone();
+    let tg_r = target_r.clone();
+    let tg_t = target_t.clone();
+    let rw_l = rw_lock.clone();
+    spawn(async move {
+        loop {
+            lotus_rt::wait::just_released("Neutral").await;
+            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
         }
     });
 
@@ -166,7 +177,9 @@ pub fn add_sollwertgeber(
             match *rw.borrow() {
                 RichtungswenderState::R | RichtungswenderState::V => {
                     let pos = *p_r.borrow();
-                    match *md_r.borrow() {
+                    let mode = *md_r.borrow();
+
+                    match mode {
                         SollwertgeberMode::Throttle => {
                             if pos > 0.15 {
                                 sp_t.send(-SPEED).unwrap();
@@ -210,7 +223,9 @@ pub fn add_sollwertgeber(
             match *rw.borrow() {
                 RichtungswenderState::R | RichtungswenderState::V => {
                     let pos = *p_r.borrow();
-                    match *md_r.borrow() {
+                    let mode = *md_r.borrow();
+
+                    match mode {
                         SollwertgeberMode::Throttle => {
                             sp_t.send(SPEED).unwrap();
                             tg_t.send(1.0).unwrap();
