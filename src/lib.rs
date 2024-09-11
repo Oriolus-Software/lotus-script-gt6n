@@ -17,18 +17,14 @@ pub struct ScriptGt6n {}
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
-        let (cockpit_receiver, cockpit_sender) = add_cockpit();
+        let channels_cockpit = add_cockpit();
 
         add_traction(
-            cockpit_receiver.sollwertgeber.clone(),
-            cockpit_receiver.richtungswender.clone(),
-            cockpit_sender.federspeicher.clone(),
+            channels_cockpit.sollwertgeber_r.clone(),
+            channels_cockpit.richtungswender_r.clone(),
         );
 
-        add_systems_interface(InterfaceChannels {
-            cockpit_receiver,
-            cockpit_sender,
-        });
+        add_systems_interface(InterfaceChannels { channels_cockpit });
 
         // let vardiewirunbedingtbrauchen = ContentId {
         //     user_id: 1000,

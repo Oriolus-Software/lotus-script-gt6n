@@ -1,8 +1,11 @@
-use crate::cockpit::{ReceiverFromCockpit, SenderToCockpit};
+use lotus_rt::spawn;
+
+use crate::cockpit::ChannelsCockpit;
 
 pub struct InterfaceChannels {
-    pub cockpit_receiver: ReceiverFromCockpit,
-    pub cockpit_sender: SenderToCockpit,
+    pub channels_cockpit: ChannelsCockpit,
 }
 
-pub fn add_systems_interface(channels: InterfaceChannels) {}
+pub fn add_systems_interface(channels: InterfaceChannels) {
+    spawn(async move { loop {} });
+}
