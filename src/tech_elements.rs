@@ -1,3 +1,4 @@
+use bon::Builder;
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
 
@@ -37,8 +38,8 @@ pub fn add_button(prop: ButtonProperties) -> Shared<bool> {
     pressed
 }
 
-pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
-    fn set_on(target: f32, prop: &ButtonTwoSidedSpringLoaded) {
+pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoadedProperties) {
+    fn set_on(target: f32, prop: &ButtonTwoSidedSpringLoadedProperties) {
         if let Some(ref variable) = prop.animation_var {
             target.set(variable);
         }
@@ -47,7 +48,7 @@ pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
         }
     }
 
-    fn set_off(prop: &ButtonTwoSidedSpringLoaded) {
+    fn set_off(prop: &ButtonTwoSidedSpringLoadedProperties) {
         if let Some(ref variable) = prop.animation_var {
             0.0.set(variable);
         }
@@ -76,11 +77,7 @@ pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
     });
 }
 
-pub fn add_indicator_light(
-    variable: String,
-    lighttest: Option<Shared<bool>>,
-    voltage: Shared<f32>,
-) -> Shared<bool> {
+pub fn add_indicator_light(prop: IndicatorLightProperties) -> Shared<bool> {
     let state = Shared::<bool>::default();
 
     {
@@ -89,13 +86,11 @@ pub fn add_indicator_light(
         spawn(async move {
             loop {
                 let mut on = state.get();
-                if let Some(ref lt) = lighttest {
+                if let Some(ref lt) = prop.lighttest {
                     on = on || lt.get();
                 }
 
-                on.then_some(voltage.get())
-                    .unwrap_or(0.0)
-                    .set(variable.as_str());
+                if on { prop.voltage.get() } else { 0.0 }.set(prop.variable.as_str());
 
                 wait::next_tick().await;
             }
@@ -105,18 +100,36 @@ pub fn add_indicator_light(
     state
 }
 
+#[derive(Builder, Clone)]
 pub struct ButtonProperties {
+    #[builder(into)]
     pub input_event: String,
+    #[builder(into)]
     pub animation_var: Option<String>,
+    #[builder(into)]
     pub sound_on: Option<String>,
+    #[builder(into)]
     pub sound_off: Option<String>,
 }
 
-#[derive(Clone)]
-pub struct ButtonTwoSidedSpringLoaded {
+#[derive(Builder, Clone)]
+pub struct ButtonTwoSidedSpringLoadedProperties {
+    #[builder(into)]
     pub input_event_plus: String,
+    #[builder(into)]
     pub input_event_minus: String,
+    #[builder(into)]
     pub animation_var: Option<String>,
+    #[builder(into)]
     pub sound_on: Option<String>,
+    #[builder(into)]
     pub sound_off: Option<String>,
+}
+
+#[derive(Builder, Clone)]
+pub struct IndicatorLightProperties {
+    #[builder(into)]
+    pub variable: String,
+    pub lighttest: Option<Shared<bool>>,
+    pub voltage: Shared<f32>,
 }

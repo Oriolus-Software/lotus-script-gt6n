@@ -1,7 +1,8 @@
 use crate::{
     standard_elements::Shared,
     tech_elements::{
-        add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoaded,
+        add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
+        IndicatorLightProperties,
     },
 };
 use lotus_rt::spawn;
@@ -24,20 +25,24 @@ pub fn add_cockpit() -> ChannelsCockpit {
     let richtungswender_r = add_richtungswender(rw_lock.clone());
     let sollwertgeber_r = add_sollwertgeber(richtungswender_r.clone(), rw_lock.clone());
 
-    add_button_twosided_springloaded(ButtonTwoSidedSpringLoaded {
-        input_event_plus: "HighVoltageMainSwitchOn".into(),
-        input_event_minus: "HighVoltageMainSwitchOff".into(),
-        animation_var: Some("A_CP_SW_Hauptschalter".into()),
-        sound_on: Some("Snd_CP_A_RotBtnOn".into()),
-        sound_off: Some("Snd_CP_A_RotBtnOff".into()),
-    });
+    add_button_twosided_springloaded(
+        ButtonTwoSidedSpringLoadedProperties::builder()
+            .input_event_minus("HighVoltageMainSwitchOn")
+            .input_event_plus("HighVoltageMainSwitchOff")
+            .animation_var("A_CP_SW_Hauptschalter")
+            .sound_on("Snd_CP_A_RotBtnOn")
+            .sound_off("Snd_CP_A_RotBtnOff")
+            .build(),
+    );
 
-    let lightcheck = add_button(ButtonProperties {
-        input_event: "Lightcheck".into(),
-        animation_var: Some("A_CP_TS_Lampentest".into()),
-        sound_on: Some("Snd_CP_A_BtnDn".into()),
-        sound_off: Some("Snd_CP_A_BtnUp".into()),
-    });
+    let lightcheck = add_button(
+        ButtonProperties::builder()
+            .input_event("Lightcheck")
+            .animation_var("A_CP_TS_Lampentest")
+            .sound_on("Snd_CP_A_BtnDn")
+            .sound_off("Snd_CP_A_BtnUp")
+            .build(),
+    );
 
     let federspeicher_overwrite_r = add_button(ButtonProperties {
         input_event: "FspDeactiveToggle".into(),
@@ -46,8 +51,13 @@ pub fn add_cockpit() -> ChannelsCockpit {
         sound_off: Some("Snd_CP_A_BtnUp".into()),
     });
 
-    let federspeicher_t =
-        add_indicator_light("A_LM_FSp".into(), Some(lightcheck.clone()), voltage_r);
+    let federspeicher_t = add_indicator_light(
+        IndicatorLightProperties::builder()
+            .variable("A_LM_FSp")
+            .lighttest(lightcheck.clone())
+            .voltage(voltage_r)
+            .build(),
+    );
 
     ChannelsCockpit {
         richtungswender_r,
