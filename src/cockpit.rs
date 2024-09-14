@@ -7,9 +7,11 @@ use lotus_script::{time, var::VariableType};
 
 use crate::tech_elements::add_button_twosided_springloaded;
 
+#[derive(Debug, Clone)]
 pub struct ChannelsCockpit {
     pub richtungswender_r: watch::Receiver<RichtungswenderState>,
     pub sollwertgeber_r: watch::Receiver<f32>,
+    pub federspeicher_overwrite_r: watch::Receiver<bool>,
     pub federspeicher_t: watch::Sender<bool>,
 }
 
@@ -35,17 +37,25 @@ pub fn add_cockpit() -> ChannelsCockpit {
         sound_off: Some("Snd_CP_A_BtnUp".into()),
     });
 
+    let federspeicher_overwrite_r = add_button(ButtonProperties {
+        input_event: "FspDeactiveToggle".into(),
+        animation_var: Some("A_CP_TS_Fsp".into()),
+        sound_on: Some("Snd_CP_A_BtnDn".into()),
+        sound_off: Some("Snd_CP_A_BtnUp".into()),
+    });
+
     let federspeicher_t =
         add_indicator_light("A_LM_FSp".into(), Some(lightcheck.clone()), voltage_r);
 
-    (ChannelsCockpit {
+    ChannelsCockpit {
         richtungswender_r,
         sollwertgeber_r,
+        federspeicher_overwrite_r,
         federspeicher_t,
-    })
+    }
 }
 
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum RichtungswenderState {
     #[default]
     O,

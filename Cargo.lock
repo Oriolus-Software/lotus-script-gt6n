@@ -80,7 +80,7 @@ version = "0.1.0"
 dependencies = [
  "lotus-extra",
  "lotus-rt",
- "lotus-script 0.5.2",
+ "lotus-script 0.5.3",
 ]
 
 [[package]]
@@ -164,7 +164,7 @@ dependencies = [
 
 [[package]]
 name = "lotus-script"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "lotus-bindgen-macros 0.1.1",
  "lotus-script-sys",

@@ -2,8 +2,6 @@ use lotus_extra::elements::std_elements::helper::exponential_approach;
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
 
-use crate::cockpit::RichtungswenderState;
-
 const MAXFORCE_N_ZERO: f32 = 16_000.0;
 const MAXFORCE_N_60: f32 = 2000.0;
 const MAXFORCE_DEC_PER_MS: f32 = (MAXFORCE_N_ZERO - MAXFORCE_N_60) / (60.0 / 3.6);
@@ -25,12 +23,25 @@ impl TractionAndBrakeUnitState {
     }
 }
 
-pub fn add_traction(
-    rx_sollwertgeber: lotus_rt::sync::watch::Receiver<f32>,
-    rx_richtungswender: lotus_rt::sync::watch::Receiver<RichtungswenderState>,
-) {
-    let mut rx_wr = rx_richtungswender.clone();
-    let mut rx_swg = rx_sollwertgeber.clone();
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TractionDirection {
+    Forward,
+    Neutral,
+    Backward,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelsTraction {
+    pub direction_t: lotus_rt::sync::watch::Sender<TractionDirection>,
+    pub target_t: lotus_rt::sync::watch::Sender<f32>,
+}
+
+pub fn add_traction() -> ChannelsTraction {
+    let (direction_t, direction_r) = lotus_rt::sync::watch::channel(TractionDirection::Forward);
+    let (target_t, target_r) = lotus_rt::sync::watch::channel(0.0);
+
+    let mut rx_wr = direction_r.clone();
+    let mut rx_swg = target_r.clone();
 
     spawn(async move {
         let a = TractionAndBrakeUnitState::default();
@@ -66,7 +77,7 @@ pub fn add_traction(
                 .set_speed(f32::get("v_Axle_mps_2_0"));
 
             for u in units.iter_mut() {
-                let reversed = rw_position == RichtungswenderState::R;
+                let reversed = rw_position == TractionDirection::Backward;
 
                 let speed_in_dir = if reversed {
                     -u.curr_speed
@@ -147,7 +158,12 @@ pub fn add_traction(
             units[1].curr_brake_force.set("MBrake_Axle_N_1_1");
             units[2].curr_brake_force.set("MBrake_Axle_N_2_0");
 
-            wait::ticks(1).await;
+            wait::next_tick().await;
         }
     });
+
+    ChannelsTraction {
+        direction_t,
+        target_t,
+    }
 }
