@@ -7,13 +7,26 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [patch.crates-io]
+lotus-script = { path = "../../script-rs/lotus-script" }
 lotus-script-sys = { path = "../../script-rs/lotus-script-sys" }
+lotus-shared = { path = "../../script-rs/lotus-shared" }
 
 [dependencies]
 lotus-script = { path = "../../script-rs/lotus-script" }
-lotus-extra = { path = "../../lotus-extra" }
+# lotus-extra = { path = "../../lotus-extra" }
 lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-features = false, features = [
     "lotus",
     "sync",
     "macros",
 ] }
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = false
+panic = "abort"
+strip = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1

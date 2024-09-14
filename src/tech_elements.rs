@@ -1,31 +1,40 @@
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
 
-pub fn add_button(prop: ButtonProperties) -> lotus_rt::sync::watch::Receiver<bool> {
-    let (tx, rx) = lotus_rt::sync::watch::channel(false);
+use crate::standard_elements::Shared;
 
-    spawn(async move {
-        loop {
-            wait::just_pressed(prop.input_event.clone().as_str()).await;
-            tx.send(true).unwrap();
-            if let Some(ref variable) = prop.animation_var {
-                1.0.set(variable);
-            }
-            if let Some(ref sound) = prop.sound_on {
-                true.set(sound);
-            }
-            wait::just_released(prop.input_event.clone().as_str()).await;
-            tx.send(false).unwrap();
-            if let Some(ref variable) = prop.animation_var {
-                0.0.set(variable);
-            }
-            if let Some(ref sound) = prop.sound_off {
-                true.set(sound);
-            }
-        }
-    });
+pub fn add_button(prop: ButtonProperties) -> Shared<bool> {
+    let pressed = Shared::<bool>::default();
 
-    rx
+    {
+        let pressed = pressed.clone();
+
+        spawn(async move {
+            loop {
+                wait::just_pressed(prop.input_event.clone().as_str()).await;
+
+                pressed.set(true);
+                if let Some(ref variable) = prop.animation_var {
+                    1.0.set(variable);
+                }
+                if let Some(ref sound) = prop.sound_on {
+                    true.set(sound);
+                }
+
+                wait::just_released(prop.input_event.clone().as_str()).await;
+
+                pressed.set(false);
+                if let Some(ref variable) = prop.animation_var {
+                    0.0.set(variable);
+                }
+                if let Some(ref sound) = prop.sound_off {
+                    true.set(sound);
+                }
+            }
+        });
+    }
+
+    pressed
 }
 
 pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
@@ -69,27 +78,31 @@ pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoaded) {
 
 pub fn add_indicator_light(
     variable: String,
-    lighttest: Option<lotus_rt::sync::watch::Receiver<bool>>,
-    voltage: lotus_rt::sync::watch::Receiver<f32>,
-) -> lotus_rt::sync::watch::Sender<bool> {
-    let (tx, rx) = lotus_rt::sync::watch::channel(false);
+    lighttest: Option<Shared<bool>>,
+    voltage: Shared<f32>,
+) -> Shared<bool> {
+    let state = Shared::<bool>::default();
 
-    spawn(async move {
-        loop {
-            let mut on = *rx.borrow();
-            if let Some(ref lt) = lighttest {
-                on = on || *lt.borrow();
+    {
+        let state = state.clone();
+
+        spawn(async move {
+            loop {
+                let mut on = state.get();
+                if let Some(ref lt) = lighttest {
+                    on = on || lt.get();
+                }
+
+                on.then_some(voltage.get())
+                    .unwrap_or(0.0)
+                    .set(variable.as_str());
+
+                wait::next_tick().await;
             }
+        });
+    }
 
-            on.then_some(*voltage.borrow())
-                .unwrap_or(0.0)
-                .set(variable.as_str());
-
-            wait::next_tick().await;
-        }
-    });
-
-    tx
+    state
 }
 
 pub struct ButtonProperties {

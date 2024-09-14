@@ -1,26 +1,28 @@
-use crate::tech_elements::{
-    add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoaded,
+use crate::{
+    standard_elements::Shared,
+    tech_elements::{
+        add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoaded,
+    },
 };
 use lotus_rt::spawn;
-use lotus_rt::sync::watch;
 use lotus_script::{time, var::VariableType};
 
 use crate::tech_elements::add_button_twosided_springloaded;
 
 #[derive(Debug, Clone)]
 pub struct ChannelsCockpit {
-    pub richtungswender_r: watch::Receiver<RichtungswenderState>,
-    pub sollwertgeber_r: watch::Receiver<f32>,
-    pub federspeicher_overwrite_r: watch::Receiver<bool>,
-    pub federspeicher_t: watch::Sender<bool>,
+    pub richtungswender_r: Shared<RichtungswenderState>,
+    pub sollwertgeber_r: Shared<f32>,
+    pub federspeicher_overwrite_r: Shared<bool>,
+    pub federspeicher_t: Shared<bool>,
 }
 
 pub fn add_cockpit() -> ChannelsCockpit {
-    let (rw_lock_t, rw_lock_r) = lotus_rt::sync::watch::channel(false);
-    let (_, voltage_r) = lotus_rt::sync::watch::channel(1.0);
+    let rw_lock = Shared::new(false);
+    let voltage_r = Shared::<f32>::new(1.0);
 
-    let richtungswender_r = add_richtungswender(rw_lock_r);
-    let sollwertgeber_r = add_sollwertgeber(richtungswender_r.clone(), rw_lock_t);
+    let richtungswender_r = add_richtungswender(rw_lock.clone());
+    let sollwertgeber_r = add_sollwertgeber(richtungswender_r.clone(), rw_lock.clone());
 
     add_button_twosided_springloaded(ButtonTwoSidedSpringLoaded {
         input_event_plus: "HighVoltageMainSwitchOn".into(),
@@ -64,12 +66,10 @@ pub enum RichtungswenderState {
     R,
 }
 
-pub fn add_richtungswender(
-    lock: lotus_rt::sync::watch::Receiver<bool>,
-) -> lotus_rt::sync::watch::Receiver<RichtungswenderState> {
-    let (tx, rx) = lotus_rt::sync::watch::channel(RichtungswenderState::O);
+pub fn add_richtungswender(lock: Shared<bool>) -> Shared<RichtungswenderState> {
+    let state = Shared::new(RichtungswenderState::O);
 
-    pub fn angle(state: RichtungswenderState) -> f32 {
+    fn angle(state: RichtungswenderState) -> f32 {
         match state {
             RichtungswenderState::I => 29.0,
             RichtungswenderState::V => 58.0,
@@ -78,21 +78,20 @@ pub fn add_richtungswender(
         }
     }
 
-    let r = rx.clone();
-    let t = tx.clone();
+    let state_clone = state.clone();
 
-    let l = lock.clone();
+    let lock_clone = lock.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("ReverserPlus").await;
 
-            if *l.borrow() {
+            if lock_clone.get() {
                 continue;
             }
 
             let mut state_new = None;
 
-            match *r.borrow() {
+            match state_clone.get() {
                 RichtungswenderState::O => state_new = Some(RichtungswenderState::I),
                 RichtungswenderState::I => state_new = Some(RichtungswenderState::V),
                 RichtungswenderState::V => state_new = Some(RichtungswenderState::R),
@@ -100,28 +99,27 @@ pub fn add_richtungswender(
             }
 
             if let Some(n) = state_new {
-                t.send(n).unwrap();
+                state_clone.set(n);
                 angle(n).set("A_CP_Richtungswender");
                 true.set("Snd_CP_A_Reverser");
             }
         }
     });
 
-    let r = rx.clone();
-    let t = tx.clone();
+    let state_clone = state.clone();
 
-    let l = lock.clone();
+    let lock_clone = lock.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("ReverserMinus").await;
 
-            if *l.borrow() {
+            if lock_clone.get() {
                 continue;
             }
 
             let mut sn = None;
 
-            match *r.borrow() {
+            match state_clone.get() {
                 RichtungswenderState::I => sn = Some(RichtungswenderState::O),
                 RichtungswenderState::V => sn = Some(RichtungswenderState::I),
                 RichtungswenderState::R => sn = Some(RichtungswenderState::V),
@@ -129,130 +127,94 @@ pub fn add_richtungswender(
             }
 
             if let Some(n) = sn {
-                t.send(n).unwrap();
+                state_clone.set(n);
                 angle(n).set("A_CP_Richtungswender");
                 true.set("Snd_CP_A_Reverser");
             }
         }
     });
 
-    rx
+    state
 }
 
 pub fn add_sollwertgeber(
-    richtungswender_r: lotus_rt::sync::watch::Receiver<RichtungswenderState>,
-    rw_lock: lotus_rt::sync::watch::Sender<bool>,
-) -> lotus_rt::sync::watch::Receiver<f32> {
+    richtungswender: Shared<RichtungswenderState>,
+    rw_lock: Shared<bool>,
+) -> Shared<f32> {
     const SPEED: f32 = 1.0;
     const SPEED_HIGH: f32 = 5.0;
     const SPEED_VERYHIGH: f32 = 20.0;
 
-    let (position_t, position_r) = lotus_rt::sync::watch::channel(0.0);
-    let (speed_t, mut speed_r) = lotus_rt::sync::watch::channel(0.0);
-    let (target_t, mut target_r) = lotus_rt::sync::watch::channel(0.0f32);
-    let (mode_t, mode_r) = lotus_rt::sync::watch::channel(SollwertgeberMode::Neutral);
-    let (notch_t, notch_r) = lotus_rt::sync::watch::channel(SollwertgeberNotch::Neutral);
+    let position = Shared::new(0.0);
+    let speed = Shared::new(0.0);
+    let target = Shared::new(0.0f32);
+    let mode = Shared::new(SollwertgeberMode::Neutral);
+    let notch = Shared::new(SollwertgeberNotch::Neutral);
 
-    fn release(
-        p_r: &lotus_rt::sync::watch::Receiver<f32>,
-        sp_t: &lotus_rt::sync::watch::Sender<f32>,
-        md_r: &lotus_rt::sync::watch::Receiver<SollwertgeberMode>,
-        rw_lock: &lotus_rt::sync::watch::Sender<bool>,
-        tg_t: &lotus_rt::sync::watch::Sender<f32>,
-        tg_r: &lotus_rt::sync::watch::Receiver<f32>,
-    ) {
-        let pos = *p_r.borrow();
-        let not_near_neutral = !(-0.1..0.1).contains(&pos);
-        match *md_r.borrow() {
-            SollwertgeberMode::Throttle | SollwertgeberMode::Brake => {
-                if not_near_neutral {
-                    tg_t.send(pos).unwrap();
-                    sp_t.send(0.0).unwrap();
-                } else if *tg_r.borrow() > 0.0 {
-                    tg_t.send(0.1).unwrap();
-                } else {
-                    tg_t.send(-0.1).unwrap();
-                }
+    let p = position.clone();
+    let sp = speed.clone();
+    let md = mode.clone();
+    let tg = target.clone();
+    spawn(async move {
+        loop {
+            lotus_rt::select! {
+                _ = lotus_rt::wait::just_released("Throttle")=>{}
+                _ = lotus_rt::wait::just_released("Neutral")=>{}
+                _ = lotus_rt::wait::just_released("Brake")=>{}
             }
-            _ => {}
-        }
-        rw_lock.send(not_near_neutral).unwrap();
-    }
-
-    let p_r = position_r.clone();
-    let sp_t = speed_t.clone();
-    let md_r = mode_r.clone();
-    let tg_r = target_r.clone();
-    let tg_t = target_t.clone();
-    let rw_l = rw_lock.clone();
-    spawn(async move {
-        loop {
-            lotus_rt::wait::just_released("Throttle").await;
-            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
-        }
-    });
-
-    let p_r = position_r.clone();
-    let sp_t = speed_t.clone();
-    let md_r = mode_r.clone();
-    let tg_r = target_r.clone();
-    let tg_t = target_t.clone();
-    let rw_l = rw_lock.clone();
-    spawn(async move {
-        loop {
-            lotus_rt::wait::just_released("Brake").await;
-            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
+            let pos = p.get();
+            let not_near_neutral = !(-0.1..0.1).contains(&pos);
+            match md.get() {
+                SollwertgeberMode::Throttle | SollwertgeberMode::Brake => {
+                    if not_near_neutral {
+                        tg.set(pos);
+                        sp.set(0.0);
+                    } else if tg.get() > 0.0 {
+                        tg.set(0.1);
+                    } else {
+                        tg.set(-0.1);
+                    }
+                }
+                _ => {}
+            }
+            rw_lock.set(not_near_neutral);
         }
     });
 
-    let p_r = position_r.clone();
-    let sp_t = speed_t.clone();
-    let md_r = mode_r.clone();
-    let tg_r = target_r.clone();
-    let tg_t = target_t.clone();
-    let rw_l = rw_lock.clone();
-    spawn(async move {
-        loop {
-            lotus_rt::wait::just_released("Neutral").await;
-            release(&p_r, &sp_t, &md_r, &rw_l, &tg_t, &tg_r);
-        }
-    });
-
-    let p_r = position_r.clone();
-    let sp_t = speed_t.clone();
-    let tg_t = target_t.clone();
-    let md_r = mode_r.clone();
-    let md_t = mode_t.clone();
-    let rw = richtungswender_r.clone();
+    let p = position.clone();
+    let sp = speed.clone();
+    let tg = target.clone();
+    let md = mode.clone();
+    let rw = richtungswender.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("Brake").await;
 
-            match *rw.borrow() {
+            match rw.get() {
                 RichtungswenderState::R | RichtungswenderState::V => {
-                    let pos = *p_r.borrow();
-                    let mode = *md_r.borrow();
+                    let pos = p.get();
+                    let mode = md.get();
 
                     match mode {
                         SollwertgeberMode::Throttle => {
                             if pos > 0.15 {
-                                sp_t.send(-SPEED).unwrap();
-                                tg_t.send(0.1).unwrap();
+                                sp.set(-SPEED);
+                                tg.set(0.1);
                             } else {
-                                sp_t.send(-SPEED_HIGH).unwrap();
-                                tg_t.send(0.0).unwrap();
-                                md_t.send(SollwertgeberMode::Neutral).unwrap();
+                                sp.set(-SPEED_HIGH);
+                                tg.set(0.0);
+                                md.set(SollwertgeberMode::Neutral);
                             }
                         }
                         SollwertgeberMode::Neutral => {
-                            sp_t.send(-SPEED).unwrap();
-                            tg_t.send(-0.9).unwrap();
-                            md_t.send(SollwertgeberMode::Brake).unwrap();
+                            sp.set(-SPEED);
+                            tg.set(-0.9);
+                            md.set(SollwertgeberMode::Brake);
                         }
                         SollwertgeberMode::Brake => {
                             if pos > -0.9 {
-                                sp_t.send(-SPEED).unwrap();
-                                tg_t.send(-0.9).unwrap();
+                                sp.set(-SPEED);
+                                tg.set(-0.9);
                             }
                         }
                         _ => {}
@@ -263,45 +225,43 @@ pub fn add_sollwertgeber(
         }
     });
 
-    let p_r = position_r.clone();
-    let p_t = position_t.clone();
-    let sp_t = speed_t.clone();
-    let tg_t = target_t.clone();
-    let md_r = mode_r.clone();
-    let md_t = mode_t.clone();
-    let rw = richtungswender_r.clone();
+    let p = position.clone();
+    let sp = speed.clone();
+    let tg = target.clone();
+    let md = mode.clone();
+    let rw = richtungswender.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("Throttle").await;
 
-            match *rw.borrow() {
+            match rw.get() {
                 RichtungswenderState::R | RichtungswenderState::V => {
-                    let pos = *p_r.borrow();
-                    let mode = *md_r.borrow();
+                    let pos = p.get();
+                    let mode = md.get();
 
                     match mode {
                         SollwertgeberMode::Throttle => {
-                            sp_t.send(SPEED).unwrap();
-                            tg_t.send(1.0).unwrap();
+                            sp.set(SPEED);
+                            tg.set(1.0);
                         }
                         SollwertgeberMode::Neutral => {
-                            sp_t.send(SPEED).unwrap();
-                            tg_t.send(1.0).unwrap();
-                            md_t.send(SollwertgeberMode::Throttle).unwrap();
+                            sp.set(SPEED);
+                            tg.set(1.0);
+                            md.set(SollwertgeberMode::Throttle);
                         }
 
                         SollwertgeberMode::Brake | SollwertgeberMode::EmergencyBrake => {
                             if pos < -0.15 {
-                                sp_t.send(SPEED).unwrap();
-                                tg_t.send(-0.1).unwrap();
+                                sp.set(SPEED);
+                                tg.set(-0.1);
                                 if pos < -0.9 {
-                                    p_t.send(-0.9).unwrap();
+                                    p.set(-0.9);
                                 }
-                                md_t.send(SollwertgeberMode::Brake).unwrap();
+                                md.set(SollwertgeberMode::Brake);
                             } else {
-                                sp_t.send(SPEED_HIGH).unwrap();
-                                tg_t.send(0.0).unwrap();
-                                md_t.send(SollwertgeberMode::Neutral).unwrap();
+                                sp.set(SPEED_HIGH);
+                                tg.set(0.0);
+                                md.set(SollwertgeberMode::Neutral);
                             }
                         }
                     }
@@ -311,50 +271,46 @@ pub fn add_sollwertgeber(
         }
     });
 
-    let p_r = position_r.clone();
-    let sp_t = speed_t.clone();
-    let tg_t = target_t.clone();
-    let md_t = mode_t.clone();
+    let p = position.clone();
+    let sp = speed.clone();
+    let tg = target.clone();
+    let md = mode.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("Neutral").await;
 
-            if *p_r.borrow() > 0.0 {
-                sp_t.send(-SPEED_HIGH).unwrap();
+            if p.get() > 0.0 {
+                sp.set(-SPEED_HIGH);
             } else {
-                sp_t.send(SPEED_HIGH).unwrap();
+                sp.set(SPEED_HIGH);
             }
-            tg_t.send(0.0).unwrap();
-            md_t.send(SollwertgeberMode::Neutral).unwrap();
+            tg.set(0.0);
+            md.set(SollwertgeberMode::Neutral);
         }
     });
 
-    let sp_t = speed_t.clone();
-    let tg_t = target_t.clone();
-    let md_t = mode_t.clone();
-    let rw = richtungswender_r.clone();
+    let sp = speed.clone();
+    let tg = target.clone();
+    let md = mode.clone();
+    let rw = richtungswender.clone();
     spawn(async move {
         loop {
             lotus_rt::wait::just_pressed("MaxBrake").await;
 
-            match *rw.borrow() {
+            match rw.get() {
                 RichtungswenderState::R | RichtungswenderState::V => {
-                    sp_t.send(-SPEED_VERYHIGH).unwrap();
-                    tg_t.send(-1.0).unwrap();
-                    md_t.send(SollwertgeberMode::EmergencyBrake).unwrap();
+                    sp.set(-SPEED_VERYHIGH);
+                    tg.set(-1.0);
+                    md.set(SollwertgeberMode::EmergencyBrake);
                 }
                 _ => {}
             }
         }
     });
 
-    fn calc_sounds(
-        pos_r: lotus_rt::sync::watch::Receiver<f32>,
-        notch_t: lotus_rt::sync::watch::Sender<SollwertgeberNotch>,
-        mut notch_r: lotus_rt::sync::watch::Receiver<SollwertgeberNotch>,
-    ) {
-        let pos = *pos_r.borrow();
-        let old_notch = *notch_r.borrow_and_update();
+    fn calc_sounds(pos: Shared<f32>, notch: Shared<SollwertgeberNotch>) {
+        let pos = pos.get();
+        let old_notch = notch.get();
 
         let new_notch = if (-0.95..-0.87).contains(&pos) {
             SollwertgeberNotch::MaxBrake
@@ -391,44 +347,42 @@ pub fn add_sollwertgeber(
                 true.set("Snd_CP_A_SWG_NotchOther");
             }
 
-            notch_t.send(new_notch).unwrap();
+            notch.set(new_notch);
         }
     }
 
-    let pr = position_r.clone();
-    let pt = position_t.clone();
-    let nr = notch_r.clone();
-    let nt = notch_t.clone();
+    let p = position.clone();
+    let n = notch.clone();
     spawn(async move {
         loop {
-            let speed = *speed_r.borrow_and_update();
-            let target = *target_r.borrow_and_update();
+            let speed_val = speed.get();
+            let target_val = target.get();
 
             // Das funktioniert nicht, solange die Position auch direkt gesetzt werden kann (z.B. per "Neutral")
             // if speed != 0.0 {
-            let mut position = *pr.borrow() + speed * time::delta();
+            let mut position = p.get() + speed_val * time::delta();
 
-            let pos_max = target.min(1.0f32);
-            let pos_min = target.max(-1.0f32);
-            if (speed > 0.0) && (position > pos_max) {
+            let pos_max = target_val.min(1.0f32);
+            let pos_min = target_val.max(-1.0f32);
+            if (speed_val > 0.0) && (position > pos_max) {
                 position = pos_max;
-                speed_t.send(0.0).unwrap();
+                speed.set(0.0);
             }
-            if (speed < 0.0) && (position < pos_min) {
+            if (speed_val < 0.0) && (position < pos_min) {
                 position = pos_min;
-                speed_t.send(0.0).unwrap();
+                speed.set(0.0);
             }
 
-            pt.send(position).unwrap();
+            p.set(position);
             position.set("A_CP_Sollwertgeber");
 
-            calc_sounds(pr.clone(), nt.clone(), nr.clone());
+            calc_sounds(p.clone(), n.clone());
 
             lotus_rt::wait::next_tick().await;
         }
     });
 
-    position_r
+    position
 }
 
 #[derive(Default, Clone, Copy)]

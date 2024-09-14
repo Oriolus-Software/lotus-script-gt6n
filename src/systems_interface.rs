@@ -14,8 +14,8 @@ pub struct InterfaceChannels {
 pub fn add_systems_interface(channels: InterfaceChannels) {
     spawn(async move {
         loop {
-            let r = *channels.channels_cockpit.richtungswender_r.borrow();
-            let s = *channels.channels_cockpit.sollwertgeber_r.borrow();
+            let r = channels.channels_cockpit.richtungswender_r.get();
+            let s = channels.channels_cockpit.sollwertgeber_r.get();
 
             let (cockpit_a_active, cockpit_a_drive) = match r {
                 RichtungswenderState::O => (false, false),
@@ -25,8 +25,8 @@ pub fn add_systems_interface(channels: InterfaceChannels) {
 
             channels
                 .channels_traction
-                .direction_t
-                .send(if cockpit_a_active {
+                .direction
+                .set(if cockpit_a_active {
                     match r {
                         RichtungswenderState::V => TractionDirection::Forward,
                         RichtungswenderState::R => TractionDirection::Backward,
@@ -34,32 +34,22 @@ pub fn add_systems_interface(channels: InterfaceChannels) {
                     }
                 } else {
                     TractionDirection::Neutral
-                })
-                .unwrap();
+                });
 
-            channels
-                .channels_traction
-                .target_t
-                .send(if cockpit_a_active {
-                    if s < 0.0 {
-                        s * 1.111
-                    } else {
-                        s
-                    }
+            channels.channels_traction.target.set(if cockpit_a_active {
+                if s < 0.0 {
+                    s * 1.111
                 } else {
-                    0.0
-                })
-                .unwrap();
+                    s
+                }
+            } else {
+                0.0
+            });
 
             let federspeicher = !cockpit_a_drive
-                || (cockpit_a_active
-                    && *channels.channels_cockpit.federspeicher_overwrite_r.borrow());
+                || (cockpit_a_active && channels.channels_cockpit.federspeicher_overwrite_r.get());
 
-            channels
-                .channels_cockpit
-                .federspeicher_t
-                .send(federspeicher)
-                .unwrap();
+            channels.channels_cockpit.federspeicher_t.set(federspeicher);
 
             wait::next_tick().await;
         }

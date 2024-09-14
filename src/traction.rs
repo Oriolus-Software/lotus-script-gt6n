@@ -1,6 +1,7 @@
-use lotus_extra::elements::std_elements::helper::exponential_approach;
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
+
+use crate::standard_elements::{exponential_approach, Shared};
 
 const MAXFORCE_N_ZERO: f32 = 16_000.0;
 const MAXFORCE_N_60: f32 = 2000.0;
@@ -32,26 +33,26 @@ pub enum TractionDirection {
 
 #[derive(Debug, Clone)]
 pub struct ChannelsTraction {
-    pub direction_t: lotus_rt::sync::watch::Sender<TractionDirection>,
-    pub target_t: lotus_rt::sync::watch::Sender<f32>,
+    pub direction: Shared<TractionDirection>,
+    pub target: Shared<f32>,
 }
 
 pub fn add_traction() -> ChannelsTraction {
-    let (direction_t, direction_r) = lotus_rt::sync::watch::channel(TractionDirection::Forward);
-    let (target_t, target_r) = lotus_rt::sync::watch::channel(0.0);
+    let direction = Shared::new(TractionDirection::Forward);
+    let target = Shared::new(0.0);
 
-    let mut rx_wr = direction_r.clone();
-    let mut rx_swg = target_r.clone();
+    let rx_wr = direction.clone();
+    let rx_swg = target.clone();
 
     spawn(async move {
         let a = TractionAndBrakeUnitState::default();
         let b = TractionAndBrakeUnitState::default();
         let c = TractionAndBrakeUnitState::default();
-        let mut units = vec![a, b, c];
+        let mut units = [a, b, c];
 
         loop {
-            let rw_position = *rx_wr.borrow_and_update();
-            let swg_position = *rx_swg.borrow_and_update();
+            let rw_position = rx_wr.get();
+            let swg_position = rx_swg.get();
 
             let fast_brake = swg_position < -0.95;
             let emergency_brake = false;
@@ -162,8 +163,5 @@ pub fn add_traction() -> ChannelsTraction {
         }
     });
 
-    ChannelsTraction {
-        direction_t,
-        target_t,
-    }
+    ChannelsTraction { direction, target }
 }
