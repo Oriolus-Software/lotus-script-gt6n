@@ -1,6 +1,6 @@
 use bon::Builder;
 use lotus_rt::{spawn, wait};
-use lotus_script::var::VariableType;
+use lotus_script::{log, var::VariableType};
 
 use crate::standard_elements::Shared;
 
@@ -75,6 +75,44 @@ pub fn add_button_twosided_springloaded(prop: ButtonTwoSidedSpringLoadedProperti
             set_off(&prop);
         }
     });
+}
+
+pub fn add_button_inout(prop: ButtonProperties) -> Shared<bool> {
+    let pressed = Shared::<bool>::default();
+
+    {
+        let pressed = pressed.clone();
+
+        spawn(async move {
+            loop {
+                let new_value = !pressed.get();
+
+                wait::just_pressed(prop.input_event.clone().as_str()).await;
+
+                pressed.set(new_value);
+
+                log::info!("new value: {new_value}");
+
+                if let Some(ref variable) = prop.animation_var {
+                    2.0.set(variable);
+                }
+                if let Some(ref sound) = prop.sound_on {
+                    true.set(sound);
+                }
+
+                wait::just_released(prop.input_event.clone().as_str()).await;
+
+                if let Some(ref variable) = prop.animation_var {
+                    (if new_value { 1.0 } else { 0.0 }).set(variable);
+                }
+                if let Some(ref sound) = prop.sound_off {
+                    true.set(sound);
+                }
+            }
+        });
+    }
+
+    pressed
 }
 
 pub fn add_indicator_light(prop: IndicatorLightProperties) -> Shared<bool> {

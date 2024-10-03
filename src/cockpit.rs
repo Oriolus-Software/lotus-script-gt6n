@@ -1,8 +1,8 @@
 use crate::{
     standard_elements::Shared,
     tech_elements::{
-        add_button, add_indicator_light, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
-        IndicatorLightProperties,
+        add_button, add_button_inout, add_indicator_light, ButtonProperties,
+        ButtonTwoSidedSpringLoadedProperties, IndicatorLightProperties,
     },
 };
 use lotus_rt::spawn;
@@ -44,7 +44,7 @@ pub fn add_cockpit() -> ChannelsCockpit {
             .build(),
     );
 
-    let federspeicher_overwrite_r = add_button(ButtonProperties {
+    let federspeicher_overwrite_r = add_button_inout(ButtonProperties {
         input_event: "FspDeactiveToggle".into(),
         animation_var: Some("A_CP_TS_Fsp".into()),
         sound_on: Some("Snd_CP_A_BtnDn".into()),

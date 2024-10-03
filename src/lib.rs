@@ -4,6 +4,7 @@ use systems_interface::{add_systems_interface, InterfaceChannels};
 use traction::add_traction;
 
 pub mod cockpit;
+pub mod couplings;
 pub mod input;
 pub mod standard_elements;
 pub mod systems_interface;
