@@ -128,7 +128,7 @@ pub fn add_indicator_light(prop: IndicatorLightProperties) -> Shared<bool> {
                     on = on || lt.get();
                 }
 
-                if on { prop.voltage.get() } else { 0.0 }.set(prop.variable.as_str());
+                prop.voltage.switch(on).set(prop.variable.as_str());
 
                 wait::next_tick().await;
             }

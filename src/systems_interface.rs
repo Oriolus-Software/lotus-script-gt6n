@@ -2,6 +2,7 @@ use lotus_rt::{spawn, wait};
 
 use crate::{
     cockpit::{ChannelsCockpit, RichtungswenderState},
+    lights::ChannelsLights,
     traction::{ChannelsTraction, TractionDirection},
 };
 
@@ -9,10 +10,13 @@ use crate::{
 pub struct InterfaceChannels {
     pub channels_cockpit: ChannelsCockpit,
     pub channels_traction: ChannelsTraction,
+    pub channels_lights: ChannelsLights,
 }
 
 pub fn add_systems_interface(channels: InterfaceChannels) {
     spawn(async move {
+        channels.channels_lights.voltage.set(1.0);
+
         loop {
             let r = channels.channels_cockpit.richtungswender.get();
             let s = channels.channels_cockpit.sollwertgeber.get();

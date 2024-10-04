@@ -1,4 +1,5 @@
 use cockpit::add_cockpit;
+use lights::add_lights;
 use lotus_script::{script, var::VariableType, Script};
 use systems_interface::{add_systems_interface, InterfaceChannels};
 use traction::add_traction;
@@ -6,6 +7,7 @@ use traction::add_traction;
 pub mod cockpit;
 pub mod couplings;
 pub mod input;
+pub mod lights;
 pub mod standard_elements;
 pub mod systems_interface;
 pub mod tech_elements;
@@ -20,10 +22,12 @@ impl Script for ScriptGt6n {
     fn init(&mut self) {
         let channels_cockpit = add_cockpit();
         let channels_traction = add_traction();
+        let channels_lights = add_lights();
 
         add_systems_interface(InterfaceChannels {
             channels_cockpit,
             channels_traction,
+            channels_lights,
         });
 
         // let vardiewirunbedingtbrauchen = ContentId {

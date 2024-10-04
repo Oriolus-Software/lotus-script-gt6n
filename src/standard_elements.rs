@@ -32,3 +32,13 @@ impl<T> Shared<T> {
         self.sender.send(value).ok();
     }
 }
+
+impl Shared<f32> {
+    pub fn switch(&self, b: bool) -> f32 {
+        if b {
+            self.get()
+        } else {
+            0.0
+        }
+    }
+}
