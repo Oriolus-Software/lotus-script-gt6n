@@ -12,18 +12,20 @@ use crate::tech_elements::add_button_twosided_springloaded;
 
 #[derive(Debug, Clone)]
 pub struct ChannelsCockpit {
-    pub richtungswender_r: Shared<RichtungswenderState>,
-    pub sollwertgeber_r: Shared<f32>,
-    pub federspeicher_overwrite_r: Shared<bool>,
-    pub federspeicher_t: Shared<bool>,
+    pub richtungswender: Shared<RichtungswenderState>,
+    pub sollwertgeber: Shared<f32>,
+    pub federspeicher_overwrite: Shared<bool>,
+    pub lm_federspeicher: Shared<bool>,
 }
 
 pub fn add_cockpit() -> ChannelsCockpit {
     let rw_lock = Shared::new(false);
     let voltage_r = Shared::<f32>::new(1.0);
 
-    let richtungswender_r = add_richtungswender(rw_lock.clone());
-    let sollwertgeber_r = add_sollwertgeber(richtungswender_r.clone(), rw_lock.clone());
+    let richtungswender = add_richtungswender(rw_lock.clone());
+    let sollwertgeber = add_sollwertgeber(richtungswender.clone(), rw_lock.clone());
+
+    set_unused_lms();
 
     add_button_twosided_springloaded(
         ButtonTwoSidedSpringLoadedProperties::builder()
@@ -44,14 +46,16 @@ pub fn add_cockpit() -> ChannelsCockpit {
             .build(),
     );
 
-    let federspeicher_overwrite_r = add_button_inout(ButtonProperties {
-        input_event: "FspDeactiveToggle".into(),
-        animation_var: Some("A_CP_TS_Fsp".into()),
-        sound_on: Some("Snd_CP_A_BtnDn".into()),
-        sound_off: Some("Snd_CP_A_BtnUp".into()),
-    });
+    let federspeicher_overwrite = add_button_inout(
+        ButtonProperties::builder()
+            .input_event("FspDeactiveToggle")
+            .animation_var("A_CP_TS_Fsp")
+            .sound_on("Snd_CP_A_BtnDn")
+            .sound_off("Snd_CP_A_BtnUp")
+            .build(),
+    );
 
-    let federspeicher_t = add_indicator_light(
+    let lm_federspeicher = add_indicator_light(
         IndicatorLightProperties::builder()
             .variable("A_LM_FSp")
             .lighttest(lightcheck.clone())
@@ -60,11 +64,29 @@ pub fn add_cockpit() -> ChannelsCockpit {
     );
 
     ChannelsCockpit {
-        richtungswender_r,
-        sollwertgeber_r,
-        federspeicher_overwrite_r,
-        federspeicher_t,
+        richtungswender,
+        sollwertgeber,
+        federspeicher_overwrite,
+        lm_federspeicher,
     }
+}
+
+fn set_unused_lms() {
+    0.0.set("A_LM_BlinkerLinks");
+    0.0.set("A_LM_BlinkerLinks");
+    0.0.set("A_LM_BlinkerRechts");
+    0.0.set("A_LM_Fernlicht");
+    0.0.set("A_LM_DoorsClosed");
+    0.0.set("A_LM_Haltewunsch");
+    0.0.set("A_LM_Kinderwagen");
+    0.0.set("A_LM_Rollstuhl");
+    0.0.set("A_LM_Schienenbremse");
+    0.0.set("A_LM_Sifa");
+    0.0.set("A_LM_Warnblinken");
+    0.0.set("A_LM_Sprechstelle");
+    0.0.set("A_LM_Hauptschalter");
+    0.0.set("A_LM_Notstart");
+    0.0.set("A_LM_Notablegen");
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]

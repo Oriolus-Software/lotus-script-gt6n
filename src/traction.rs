@@ -35,14 +35,17 @@ pub enum TractionDirection {
 pub struct ChannelsTraction {
     pub direction: Shared<TractionDirection>,
     pub target: Shared<f32>,
+    pub federspeicher: Shared<bool>,
 }
 
 pub fn add_traction() -> ChannelsTraction {
     let direction = Shared::new(TractionDirection::Forward);
     let target = Shared::new(0.0);
+    let federspeicher = Shared::new(false);
 
     let rx_wr = direction.clone();
     let rx_swg = target.clone();
+    let fsp = federspeicher.clone();
 
     spawn(async move {
         let a = TractionAndBrakeUnitState::default();
@@ -148,7 +151,8 @@ pub fn add_traction() -> ChannelsTraction {
                 }
 
                 // Federspeicherbremse fehlt:
-                u.curr_brake_force = target_pneu_brake * MAXBRAKEFORCE_N;
+                u.curr_brake_force =
+                    (target_pneu_brake.max(fsp.get() as u8 as f32)) * MAXBRAKEFORCE_N;
             }
 
             units[0].curr_traction_force.set("M_Axle_N_0_1");
@@ -163,5 +167,9 @@ pub fn add_traction() -> ChannelsTraction {
         }
     });
 
-    ChannelsTraction { direction, target }
+    ChannelsTraction {
+        direction,
+        target,
+        federspeicher,
+    }
 }

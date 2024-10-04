@@ -14,8 +14,8 @@ pub struct InterfaceChannels {
 pub fn add_systems_interface(channels: InterfaceChannels) {
     spawn(async move {
         loop {
-            let r = channels.channels_cockpit.richtungswender_r.get();
-            let s = channels.channels_cockpit.sollwertgeber_r.get();
+            let r = channels.channels_cockpit.richtungswender.get();
+            let s = channels.channels_cockpit.sollwertgeber.get();
 
             let (cockpit_a_active, cockpit_a_drive) = match r {
                 RichtungswenderState::O => (false, false),
@@ -46,12 +46,25 @@ pub fn add_systems_interface(channels: InterfaceChannels) {
                 0.0
             });
 
-            let federspeicher = !cockpit_a_drive
-                || (cockpit_a_active && channels.channels_cockpit.federspeicher_overwrite_r.get());
+            let federspeicher_target = !cockpit_a_drive
+                || (cockpit_a_active && channels.channels_cockpit.federspeicher_overwrite.get());
 
-            channels.channels_cockpit.federspeicher_t.set(federspeicher);
+            spawn(set_federspeicher(
+                channels.channels_traction.clone(),
+                federspeicher_target,
+            ));
 
             wait::next_tick().await;
+
+            channels
+                .channels_cockpit
+                .lm_federspeicher
+                .set(channels.channels_traction.federspeicher.get() && cockpit_a_active);
         }
     });
+}
+
+pub async fn set_federspeicher(channels_traction: ChannelsTraction, new_value: bool) {
+    wait::seconds(0.3).await;
+    channels_traction.federspeicher.set(new_value);
 }
