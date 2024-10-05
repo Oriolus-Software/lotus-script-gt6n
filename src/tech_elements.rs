@@ -115,6 +115,48 @@ pub fn add_button_inout(prop: ButtonProperties) -> Shared<bool> {
     pressed
 }
 
+pub fn add_step_switch(prop: StepSwitchProperties) -> Shared<i8> {
+    fn set_position(prop: StepSwitchProperties, pos: &Shared<i8>, newval: i8) {
+        if (prop.position_min..=prop.position_max).contains(&newval) {
+            pos.set(newval);
+            if let Some(sound) = prop.sound_move.clone() {
+                true.set(sound.as_str());
+            }
+            if let Some(anim) = prop.animation_var.clone() {
+                (newval as f32).set(anim.as_str());
+            }
+        }
+    }
+
+    let position = Shared::<i8>::default();
+
+    {
+        let prop = prop.clone();
+        let position = position.clone();
+        spawn(async move {
+            loop {
+                wait::just_pressed(prop.clone().input_event_plus.as_str()).await;
+
+                set_position(prop.clone(), &position, position.get() + 1);
+            }
+        });
+    }
+
+    {
+        let prop = prop.clone();
+        let position = position.clone();
+        spawn(async move {
+            loop {
+                wait::just_pressed(prop.clone().input_event_minus.as_str()).await;
+
+                set_position(prop.clone(), &position, position.get() - 1);
+            }
+        });
+    }
+
+    position
+}
+
 pub fn add_indicator_light(prop: IndicatorLightProperties) -> Shared<bool> {
     let state = Shared::<bool>::default();
 
@@ -162,6 +204,22 @@ pub struct ButtonTwoSidedSpringLoadedProperties {
     pub sound_on: Option<String>,
     #[builder(into)]
     pub sound_off: Option<String>,
+}
+
+#[derive(Builder, Clone)]
+pub struct StepSwitchProperties {
+    #[builder(into)]
+    pub position_max: i8,
+    #[builder(into)]
+    pub position_min: i8,
+    #[builder(into)]
+    pub input_event_plus: String,
+    #[builder(into)]
+    pub input_event_minus: String,
+    #[builder(into)]
+    pub animation_var: Option<String>,
+    #[builder(into)]
+    pub sound_move: Option<String>,
 }
 
 #[derive(Builder, Clone)]

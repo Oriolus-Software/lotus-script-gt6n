@@ -31,6 +31,19 @@ impl<T> Shared<T> {
     pub fn set(&self, value: T) {
         self.sender.send(value).ok();
     }
+
+    pub fn on_change(&self, f: impl Fn(&T) + 'static)
+    where
+        T: 'static,
+    {
+        let mut r = self.receiver.clone();
+        lotus_rt::spawn(async move {
+            while (r.changed().await).is_ok() {
+                let v = r.borrow_and_update();
+                f(&v);
+            }
+        });
+    }
 }
 
 impl Shared<f32> {

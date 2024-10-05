@@ -1,8 +1,8 @@
 use crate::{
     standard_elements::Shared,
     tech_elements::{
-        add_button, add_button_inout, add_indicator_light, ButtonProperties,
-        ButtonTwoSidedSpringLoadedProperties, IndicatorLightProperties,
+        add_button, add_button_inout, add_indicator_light, add_step_switch, ButtonProperties,
+        ButtonTwoSidedSpringLoadedProperties, IndicatorLightProperties, StepSwitchProperties,
     },
 };
 use lotus_rt::spawn;
@@ -12,10 +12,14 @@ use crate::tech_elements::add_button_twosided_springloaded;
 
 #[derive(Debug, Clone)]
 pub struct ChannelsCockpit {
+    pub lightcheck: Shared<bool>,
     pub richtungswender: Shared<RichtungswenderState>,
     pub sollwertgeber: Shared<f32>,
     pub federspeicher_overwrite: Shared<bool>,
+    pub beleuchtung_aussen: Shared<i8>,
+    pub beleuchtung_fahrerraum: Shared<i8>,
     pub lm_federspeicher: Shared<bool>,
+    pub lm_fernlicht: Shared<bool>,
 }
 
 pub fn add_cockpit() -> ChannelsCockpit {
@@ -36,7 +40,6 @@ pub fn add_cockpit() -> ChannelsCockpit {
             .sound_off("Snd_CP_A_RotBtnOff")
             .build(),
     );
-
     let lightcheck = add_button(
         ButtonProperties::builder()
             .input_event("Lightcheck")
@@ -45,7 +48,6 @@ pub fn add_cockpit() -> ChannelsCockpit {
             .sound_off("Snd_CP_A_BtnUp")
             .build(),
     );
-
     let federspeicher_overwrite = add_button_inout(
         ButtonProperties::builder()
             .input_event("FspDeactiveToggle")
@@ -54,20 +56,52 @@ pub fn add_cockpit() -> ChannelsCockpit {
             .sound_off("Snd_CP_A_BtnUp")
             .build(),
     );
+    let beleuchtung_aussen = add_step_switch(
+        StepSwitchProperties::builder()
+            .input_event_minus("FrontLightMinus")
+            .input_event_plus("FrontLightPlus")
+            .position_min(0)
+            .position_max(3)
+            .animation_var("A_CP_SW_Aussenbel")
+            .sound_move("Snd_CP_A_Switch")
+            .build(),
+    );
+    let beleuchtung_fahrerraum = add_step_switch(
+        StepSwitchProperties::builder()
+            .input_event_minus("CockpitLightMinus")
+            .input_event_plus("CockpitLightPlus")
+            .position_min(0)
+            .position_max(2)
+            .animation_var("A_CP_SW_Fstbel")
+            .sound_move("Snd_CP_A_Switch")
+            .build(),
+    );
 
     let lm_federspeicher = add_indicator_light(
         IndicatorLightProperties::builder()
             .variable("A_LM_FSp")
             .lighttest(lightcheck.clone())
-            .voltage(voltage_r)
+            .voltage(voltage_r.clone())
+            .build(),
+    );
+
+    let lm_fernlicht = add_indicator_light(
+        IndicatorLightProperties::builder()
+            .variable("A_LM_Fernlicht")
+            .lighttest(lightcheck.clone())
+            .voltage(voltage_r.clone())
             .build(),
     );
 
     ChannelsCockpit {
+        lightcheck,
         richtungswender,
         sollwertgeber,
         federspeicher_overwrite,
+        beleuchtung_aussen,
+        beleuchtung_fahrerraum,
         lm_federspeicher,
+        lm_fernlicht,
     }
 }
 
@@ -75,7 +109,6 @@ fn set_unused_lms() {
     0.0.set("A_LM_BlinkerLinks");
     0.0.set("A_LM_BlinkerLinks");
     0.0.set("A_LM_BlinkerRechts");
-    0.0.set("A_LM_Fernlicht");
     0.0.set("A_LM_DoorsClosed");
     0.0.set("A_LM_Haltewunsch");
     0.0.set("A_LM_Kinderwagen");
