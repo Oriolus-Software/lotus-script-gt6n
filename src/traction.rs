@@ -1,28 +1,25 @@
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
 
-use crate::standard_elements::{exponential_approach, Shared};
+use crate::{
+    standard_elements::Shared,
+    tech_elements::{
+        brake::{
+            add_brake_combination, add_rail_brake, add_sanding_unit, BrakeCombinationElement,
+            BrakeCombinationProperties, RailBrakeProperties, SandingUnitProperties,
+        },
+        simple::{add_copy, add_delay_relay, add_var_reader, add_var_writer, DelayRelayProperties},
+        traction::{
+            add_three_phase_traction_unit, ThreePhaseTractionUnitProperties,
+            ThreePhaseTractionUnitState, TractionUnitMode,
+        },
+    },
+};
 
-const MAXFORCE_N_ZERO: f32 = 16_000.0;
-const MAXFORCE_N_60: f32 = 2000.0;
-const MAXFORCE_DEC_PER_MS: f32 = (MAXFORCE_N_ZERO - MAXFORCE_N_60) / (60.0 / 3.6);
 const VMAX: f32 = 60.0 / 3.6;
 const VMAX_BACK: f32 = 15.0 / 3.6;
 const V_EBRAKE_LIMIT: f32 = 5.0 / 3.6;
 const MAXBRAKEFORCE_N: f32 = 16_000.0;
-
-#[derive(Default)]
-pub struct TractionAndBrakeUnitState {
-    curr_traction_force: f32,
-    curr_brake_force: f32,
-    curr_speed: f32,
-}
-
-impl TractionAndBrakeUnitState {
-    fn set_speed(&mut self, new_value: f32) {
-        self.curr_speed = new_value;
-    }
-}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TractionDirection {
@@ -32,144 +29,275 @@ pub enum TractionDirection {
 }
 
 #[derive(Debug, Clone)]
-pub struct ChannelsTraction {
+pub struct TractionState {
     pub direction: Shared<TractionDirection>,
     pub target: Shared<f32>,
     pub federspeicher: Shared<bool>,
+    pub speed: Shared<f32>,
+    pub mg: Shared<bool>,
+    pub sanding: Shared<bool>,
 }
 
-pub fn add_traction() -> ChannelsTraction {
-    let direction = Shared::new(TractionDirection::Forward);
-    let target = Shared::new(0.0);
-    let federspeicher = Shared::new(false);
+#[derive(Debug, Clone)]
+pub struct TractionUnit {
+    pub traction_unit: ThreePhaseTractionUnitState,
+    pub wheelspeed: Shared<f32>,
+    pub mg_relay: Shared<bool>,
+}
 
-    let rx_wr = direction.clone();
-    let rx_swg = target.clone();
-    let fsp = federspeicher.clone();
+pub fn add_traction() -> TractionState {
+    let state = TractionState {
+        direction: Shared::new(TractionDirection::Forward),
+        target: Shared::new(0.0),
+        federspeicher: Shared::new(false),
+        mg: Shared::new(false),
+        speed: Shared::new(0.0),
+        sanding: Shared::new(false),
+    };
 
-    spawn(async move {
-        let a = TractionAndBrakeUnitState::default();
-        let b = TractionAndBrakeUnitState::default();
-        let c = TractionAndBrakeUnitState::default();
-        let mut units = [a, b, c];
+    let traction_mode = Shared::new(TractionUnitMode::Off);
+    let target_force = Shared::new(0.0);
 
-        loop {
-            let rw_position = rx_wr.get();
-            let swg_position = rx_swg.get();
+    let add_traction_unit = |bogie: usize, axle: usize, vehicle_part: String| -> TractionUnit {
+        let wheelspeed = add_var_reader::<f32>(format!("v_Axle_mps_{bogie}_{axle}"), None);
 
-            let fast_brake = swg_position < -0.95;
-            let emergency_brake = false;
+        let mg_relay = Shared::new(false);
 
-            let max_e_brake = fast_brake || emergency_brake;
+        let traction_unit = add_three_phase_traction_unit(
+            ThreePhaseTractionUnitProperties::builder()
+                .max_force_acceleration(16_000.0)
+                .max_power_acceleration(100_000.0)
+                .max_force_braking(MAXBRAKEFORCE_N)
+                .max_force_braking_per_speed(10_000.0)
+                .delay_exponent(10.0)
+                .voltage_min(0.8)
+                .set_traction_max_reverse_speed(1.0)
+                .set_wheelspeed(wheelspeed.clone())
+                .set_target_force(target_force.clone())
+                .set_traction_mode(traction_mode.clone())
+                .set_source_voltage(Shared::new(1.0))
+                .build(),
+        );
+        add_rail_brake(
+            RailBrakeProperties::builder()
+                .reference_force(128_000.0)
+                .min_voltage(0.8)
+                .sound_pitch_base(0.8)
+                .sound_pitch_per_mps(0.05)
+                .bogie_index(bogie)
+                .variable_sound_volume(format!("Snd_Mg_{vehicle_part}_Friction_vol"))
+                .variable_sound_control(format!("Snd_Mg_{vehicle_part}"))
+                .variable_sound_pitch("Snd_Mg_Friction_pitch")
+                .set_active(add_delay_relay(
+                    DelayRelayProperties::builder()
+                        .on_delay(0.14)
+                        .off_delay(0.14)
+                        .set(mg_relay.clone())
+                        .build(),
+                    None,
+                ))
+                .set_voltage(Shared::new(1.0))
+                .build(),
+        );
+        add_var_writer(
+            format!("M_Axle_N_{bogie}_{axle}"),
+            traction_unit.wheel_force.clone(),
+        );
+        add_var_writer(
+            format!("Snd_Traction_{vehicle_part}"),
+            traction_unit.wheel_force.clone(),
+        );
+        TractionUnit {
+            traction_unit,
+            wheelspeed,
+            mg_relay,
+        }
+    };
 
-            let schleuderschutz_active = false;
-            let gleitschutz_active = false;
+    let traction_units = [
+        add_traction_unit(0, 1, "A".into()),
+        add_traction_unit(1, 1, "C".into()),
+        add_traction_unit(2, 0, "B".into()),
+    ];
 
-            let traction_power_avl = true;
+    add_sanding_unit(
+        SandingUnitProperties::builder()
+            .bogie_index(0_usize)
+            .axle_index(1_usize)
+            .sound_start("Snd_Sanden_Strt")
+            .sound_loop("Snd_Sanden_Loop")
+            .sound_stop("Snd_Sanden_Stop")
+            .set_active(state.sanding.clone())
+            .build(),
+    );
+    add_sanding_unit(
+        SandingUnitProperties::builder()
+            .bogie_index(1_usize)
+            .axle_index(1_usize)
+            .set_active(state.sanding.clone())
+            .build(),
+    );
+    add_sanding_unit(
+        SandingUnitProperties::builder()
+            .bogie_index(2_usize)
+            .axle_index(0_usize)
+            .set_active(state.sanding.clone())
+            .build(),
+    );
 
-            units
-                .get_mut(0)
-                .unwrap()
-                .set_speed(f32::get("v_Axle_mps_0_1"));
-            units
-                .get_mut(1)
-                .unwrap()
-                .set_speed(f32::get("v_Axle_mps_1_1"));
-            units
-                .get_mut(2)
-                .unwrap()
-                .set_speed(f32::get("v_Axle_mps_2_0"));
+    for traction_unit in traction_units.iter() {
+        add_copy(state.mg.clone(), Some(&traction_unit.mg_relay.clone()));
+    }
 
-            for u in units.iter_mut() {
-                let reversed = rw_position == TractionDirection::Backward;
+    let hydraulic_brake_target = Shared::new(0.0);
+    let parking_brake_target = Shared::new(0.0);
 
-                let speed_in_dir = if reversed {
-                    -u.curr_speed
-                } else {
-                    u.curr_speed
-                };
+    let add_brake_unit = |bogie: usize, axle: usize| {
+        add_brake_combination(
+            BrakeCombinationProperties::builder()
+                .variable(format!("MBrake_Axle_N_{bogie}_{axle}"))
+                .elements(vec![
+                    BrakeCombinationElement::builder()
+                        .reference_force(16_000.0)
+                        .exponent(10.0)
+                        .set_brake(hydraulic_brake_target.clone())
+                        .build(),
+                    BrakeCombinationElement::builder()
+                        .reference_force(10_000.0)
+                        .exponent(10.0)
+                        .set_brake(parking_brake_target.clone())
+                        .build(),
+                ])
+                .build(),
+        );
+    };
 
-                let max_wheelforce = MAXFORCE_N_ZERO - u.curr_speed.abs() * MAXFORCE_DEC_PER_MS;
+    add_brake_unit(0, 1);
+    add_brake_unit(1, 1);
+    add_brake_unit(2, 0);
 
-                let target_all_brakes = if max_e_brake {
+    {
+        let speed_shared = state.speed.clone();
+        let richtungswender = state.direction.clone();
+        let sollwertgeber = state.target.clone();
+        let federspeicher = state.federspeicher.clone();
+
+        spawn(async move {
+            let mut mode_fixed = true;
+
+            let mut prev_speed = 0.0;
+
+            loop {
+                let richtungswender = richtungswender.get();
+                let sollwertgeber = sollwertgeber.get();
+
+                let fast_brake = sollwertgeber < -0.95;
+                let emergency_brake = false;
+
+                let max_brake = fast_brake || emergency_brake;
+
+                let schleuderschutz_active = false;
+                let gleitschutz_active = false;
+
+                let reversed = richtungswender == TractionDirection::Backward;
+
+                // für den Gleitschutz wird das linke Rad am Drehgstell des mittleren Wagenteils benutzt
+                let speed = f32::get("v_Axle_mps_1_0");
+                speed_shared.set_only_on_change(speed);
+
+                let speed_in_dir = if reversed { -speed } else { speed };
+
+                // Traction ----------------------------------------------------
+
+                let mut target_traction = if max_brake {
                     -1.0
-                } else if swg_position < 0.0 {
-                    swg_position * 1.111
+                } else if sollwertgeber < 0.0 {
+                    sollwertgeber * 1.111
                 } else if (!reversed && speed_in_dir > VMAX)
                     || (reversed && speed_in_dir > VMAX_BACK)
                     || schleuderschutz_active
                 {
                     0.0
                 } else {
-                    swg_position
+                    sollwertgeber
                 };
 
-                let mut target_e_brake = target_all_brakes;
-
-                if target_all_brakes >= 0.0 {
-                    0.0.set("Snd_BrakeFlirr");
-                    target_e_brake *= max_wheelforce * if reversed { -1.0 } else { 1.0 };
+                let mode = if target_traction > 0.01 {
+                    if reversed {
+                        TractionUnitMode::Backward
+                    } else {
+                        TractionUnitMode::Forward
+                    }
+                } else if target_traction < -0.01 {
+                    TractionUnitMode::Brake
                 } else {
-                    target_e_brake =
-                        target_e_brake.max(-1.0) * (u.curr_speed.abs() / V_EBRAKE_LIMIT).min(1.0);
-                    if u.curr_speed < 0.0 {
-                        target_e_brake = -target_e_brake;
-                    }
-                    if gleitschutz_active {
-                        target_e_brake /= 3.0;
-                    }
-                    target_e_brake.abs().set("Snd_BrakeFlirr");
-                    target_e_brake *= MAXBRAKEFORCE_N;
+                    TractionUnitMode::Off
                 };
 
-                if traction_power_avl {
-                    u.curr_traction_force =
-                        exponential_approach(u.curr_traction_force, 10.0, target_e_brake);
-                } else {
-                    u.curr_traction_force = 0.0;
+                traction_mode.set_only_on_change(mode);
+
+                let mode_acceleration =
+                    mode == TractionUnitMode::Forward || mode == TractionUnitMode::Backward;
+
+                if (mode_acceleration && target_traction > 0.0) || speed_in_dir > 0.1 {
+                    mode_fixed = false;
+                } else if speed_in_dir < 0.1 && !mode_acceleration {
+                    mode_fixed = true;
                 }
 
-                let mut target_pneu_brake = if target_all_brakes >= 0.0 {
-                    if speed_in_dir < 0.0 {
-                        1.0
-                    } else if (speed_in_dir == 0.0)
-                        && ((target_all_brakes == 0.0)
-                            || (u.curr_traction_force.abs() < 0.8 * target_e_brake.abs()))
-                    {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                } else if target_all_brakes > -1.1 {
-                    1.0 - (u.curr_speed.abs() / V_EBRAKE_LIMIT).min(1.0)
-                } else {
+                if gleitschutz_active && mode == TractionUnitMode::Brake {
+                    target_traction /= 3.0;
+                }
+
+                target_force.set_only_on_change(target_traction.abs());
+
+                // Parking brake ------------------------------------------------
+
+                let federspeicher_active = federspeicher.get();
+
+                parking_brake_target.set_only_on_change(if federspeicher_active {
                     1.0
+                } else {
+                    0.0
+                });
+
+                // Pneumatic Brake ----------------------------------------------------------------
+
+                (if mode == TractionUnitMode::Brake {
+                    traction_units[0].traction_unit.wheel_force.get().abs() / MAXBRAKEFORCE_N
+                } else {
+                    0.0
+                })
+                .set("Snd_BrakeFlirr");
+
+                let mut pneu_target = if (mode_fixed && !federspeicher_active) || max_brake {
+                    1.0
+                } else if mode == TractionUnitMode::Brake {
+                    target_traction.abs() * (1.0 - speed.abs() / V_EBRAKE_LIMIT).max(0.0)
+                } else {
+                    0.0
                 };
 
                 if gleitschutz_active {
-                    target_pneu_brake /= 3.0;
+                    pneu_target /= 3.0;
                 }
 
-                // Federspeicherbremse fehlt:
-                u.curr_brake_force =
-                    (target_pneu_brake.max(fsp.get() as u8 as f32)) * MAXBRAKEFORCE_N;
+                hydraulic_brake_target.set_only_on_change(pneu_target);
+
+                // Additional sounds --------------------------------------------
+
+                if speed == 0.0 && prev_speed != 0.0 {
+                    true.set("Snd_Halteruck");
+                }
+
+                prev_speed = speed;
+
+                // ----------------------------------------------------------------
+
+                wait::next_tick().await;
             }
-
-            units[0].curr_traction_force.set("M_Axle_N_0_1");
-            units[1].curr_traction_force.set("M_Axle_N_1_1");
-            units[2].curr_traction_force.set("M_Axle_N_2_0");
-
-            units[0].curr_brake_force.set("MBrake_Axle_N_0_1");
-            units[1].curr_brake_force.set("MBrake_Axle_N_1_1");
-            units[2].curr_brake_force.set("MBrake_Axle_N_2_0");
-
-            wait::next_tick().await;
-        }
-    });
-
-    ChannelsTraction {
-        direction,
-        target,
-        federspeicher,
+        });
     }
+
+    state
 }
