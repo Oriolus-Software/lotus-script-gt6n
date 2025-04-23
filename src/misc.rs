@@ -1,6 +1,6 @@
-use crate::{
+use lotus_rt_extra::{
+    simple::{add_start_loop_stop_sound, StartLoopStopSoundProperties},
     standard_elements::Shared,
-    tech_elements::simple::{add_start_loop_stop_sound, StartLoopStopSoundProperties},
 };
 
 #[derive(Default, Debug, Clone)]

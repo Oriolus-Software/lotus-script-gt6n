@@ -19,6 +19,7 @@ lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-featu
     "sync",
     "macros",
 ] }
+lotus-rt-extra = { git = "https://github.com/Oriolus-Software/lotus-rt-extra" }
 bon = "3"
 
 [profile.release]
@@ -31,6 +32,3 @@ codegen-units = 1
 
 [profile.dev]
 opt-level = 1
-
-[dev-dependencies]
-tokio = { version = "1.43.0", features = ["full"] }

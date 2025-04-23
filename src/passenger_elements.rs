@@ -1,6 +1,6 @@
-use crate::{
+use lotus_rt_extra::{
+    cockpit_simple::{add_timed_button, TimedButtonProperties},
     standard_elements::Shared,
-    tech_elements::cockpit_simple::{add_timed_button, TimedButtonProperties},
 };
 
 #[derive(Debug, Clone)]

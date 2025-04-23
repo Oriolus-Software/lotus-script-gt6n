@@ -1,7 +1,7 @@
 use lotus_rt::{spawn, wait};
 use lotus_script::{time::delta, var::VariableType};
 
-use crate::standard_elements::Shared;
+use lotus_rt_extra::standard_elements::Shared;
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;
@@ -151,19 +151,5 @@ impl BlinkerSwitch {
 
     pub fn is_warn_active(&self) -> bool {
         *self == BlinkerSwitch::Warn
-    }
-}
-
-impl Shared<BlinkerSwitch> {
-    pub fn is_active(&self) -> bool {
-        self.get().is_active()
-    }
-
-    pub fn is_links_active(&self) -> bool {
-        self.get().is_links_active()
-    }
-
-    pub fn is_rechts_active(&self) -> bool {
-        self.get().is_rechts_active()
     }
 }

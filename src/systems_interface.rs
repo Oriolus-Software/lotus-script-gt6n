@@ -1,4 +1,12 @@
 use lotus_rt::{spawn, wait};
+use lotus_rt_extra::{
+    doors::DoorControlMode,
+    simple::{
+        add_and, add_converter, add_delay_relay, add_loop_sound, add_or, DelayRelayProperties,
+        LoopSoundProperties,
+    },
+    standard_elements::{multiple_on_change, Shared},
+};
 use lotus_script::var::VariableType;
 
 use crate::{
@@ -7,14 +15,6 @@ use crate::{
     lights::{BlinkerSwitch, LightState},
     misc::MiscState,
     passenger_elements::PassengerElementsState,
-    standard_elements::{multiple_on_change, Shared},
-    tech_elements::{
-        doors::DoorControlMode,
-        simple::{
-            add_and, add_converter, add_delay_relay, add_loop_sound, add_or, DelayRelayProperties,
-            LoopSoundProperties,
-        },
-    },
     traction::{TractionDirection, TractionState},
 };
 

@@ -1,18 +1,16 @@
 use lotus_rt::{spawn, wait};
 use lotus_script::var::VariableType;
 
-use crate::{
+use lotus_rt_extra::{
+    brake::{
+        add_brake_combination, add_rail_brake, add_sanding_unit, BrakeCombinationElement,
+        BrakeCombinationProperties, RailBrakeProperties, SandingUnitProperties,
+    },
+    simple::{add_copy, add_delay_relay, add_var_reader, add_var_writer, DelayRelayProperties},
     standard_elements::Shared,
-    tech_elements::{
-        brake::{
-            add_brake_combination, add_rail_brake, add_sanding_unit, BrakeCombinationElement,
-            BrakeCombinationProperties, RailBrakeProperties, SandingUnitProperties,
-        },
-        simple::{add_copy, add_delay_relay, add_var_reader, add_var_writer, DelayRelayProperties},
-        traction::{
-            add_three_phase_traction_unit, ThreePhaseTractionUnitProperties,
-            ThreePhaseTractionUnitState, TractionUnitMode,
-        },
+    traction::{
+        add_three_phase_traction_unit, ThreePhaseTractionUnitProperties,
+        ThreePhaseTractionUnitState, TractionUnitMode,
     },
 };
 

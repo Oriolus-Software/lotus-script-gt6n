@@ -20,9 +20,7 @@ pub mod input;
 pub mod lights;
 pub mod misc;
 pub mod passenger_elements;
-pub mod standard_elements;
 pub mod systems_interface;
-pub mod tech_elements;
 pub mod traction;
 
 script!(ScriptGt6n);

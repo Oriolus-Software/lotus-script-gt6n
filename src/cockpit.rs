@@ -1,16 +1,14 @@
-use crate::{
-    standard_elements::Shared,
-    tech_elements::{
-        cockpit_simple::{
-            add_button, add_button_inout, add_button_twosided_springloaded,
-            add_complex_step_switch, add_indicator_light, add_step_switch, add_switch,
-            ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
-            ButtonTwoSidedSpringLoadedState, ComplexStepSwitchProperties, ComplexStepSwitchState,
-            IndicatorLightProperties, StepSwitchProperties, SwitchProperties,
-        },
-        drive_control::{add_sollwertgeber, SollwertgeberProperties},
-        simple::{add_converter, add_start_sound, StartSoundProperties},
+use lotus_rt_extra::{
+    cockpit_simple::{
+        add_button, add_button_inout, add_button_twosided_springloaded, add_complex_step_switch,
+        add_indicator_light, add_step_switch, add_switch, ButtonProperties,
+        ButtonTwoSidedSpringLoadedProperties, ButtonTwoSidedSpringLoadedState,
+        ComplexStepSwitchProperties, ComplexStepSwitchState, IndicatorLightProperties,
+        StepSwitchProperties, SwitchProperties,
     },
+    drive_control::{add_sollwertgeber, SollwertgeberProperties},
+    simple::{add_converter, add_start_sound, StartSoundProperties},
+    standard_elements::Shared,
 };
 
 #[derive(Debug, Clone)]
