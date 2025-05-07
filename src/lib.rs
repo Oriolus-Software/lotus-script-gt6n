@@ -14,6 +14,7 @@ use systems_interface::{add_systems_interface, SystemStates};
 use traction::add_traction;
 
 pub mod cockpit;
+pub mod cockpit_types;
 pub mod couplings;
 pub mod doors;
 pub mod input;

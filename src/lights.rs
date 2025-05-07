@@ -18,7 +18,7 @@ pub struct LightState {
     pub rueck: Shared<bool>,
     pub rueckfahr: Shared<bool>,
     pub brems: Shared<bool>,
-    pub blinker_state: Shared<BlinkerSwitch>,
+    pub blinker_state: Shared<BlinkerState>,
     pub blinker_lampe_rechts: Shared<bool>,
     pub blinker_lampe_links: Shared<bool>,
     pub lm_warnblinker: Shared<bool>,
@@ -128,7 +128,7 @@ impl BlinkgeberState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum BlinkerSwitch {
+pub enum BlinkerState {
     #[default]
     Aus,
     Links,
@@ -136,20 +136,20 @@ pub enum BlinkerSwitch {
     Warn,
 }
 
-impl BlinkerSwitch {
+impl BlinkerState {
     pub fn is_active(&self) -> bool {
-        *self != BlinkerSwitch::Aus
+        *self != BlinkerState::Aus
     }
 
     pub fn is_links_active(&self) -> bool {
-        *self == BlinkerSwitch::Links || *self == BlinkerSwitch::Warn
+        *self == BlinkerState::Links || *self == BlinkerState::Warn
     }
 
     pub fn is_rechts_active(&self) -> bool {
-        *self == BlinkerSwitch::Rechts || *self == BlinkerSwitch::Warn
+        *self == BlinkerState::Rechts || *self == BlinkerState::Warn
     }
 
     pub fn is_warn_active(&self) -> bool {
-        *self == BlinkerSwitch::Warn
+        *self == BlinkerState::Warn
     }
 }

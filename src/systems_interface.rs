@@ -7,12 +7,13 @@ use lotus_rt_extra::{
     },
     standard_elements::{multiple_on_change, Shared},
 };
-use lotus_script::var::VariableType;
+use lotus_script::{log, var::VariableType};
 
 use crate::{
-    cockpit::{CockpitState, RichtungswenderState},
+    cockpit::CockpitState,
+    cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
     doors::DoorsState,
-    lights::{BlinkerSwitch, LightState},
+    lights::{BlinkerState, LightState},
     misc::MiscState,
     passenger_elements::PassengerElementsState,
     traction::{TractionDirection, TractionState},
@@ -137,7 +138,7 @@ async fn federspeicher(cockpit: CockpitState, traction: TractionState, interface
     let mut prev = false;
     loop {
         let new_value = !interface.cockpit_a_drive.get()
-            || (interface.cockpit_a_active.get() && cockpit.federspeicher_overwrite.get());
+            || (interface.cockpit_a_active.get() && cockpit.federspeicher_overwrite.get().is_in());
 
         if prev != new_value {
             wait::seconds(0.3).await;
@@ -243,15 +244,20 @@ fn outside_lights(state: &Interface) {
         move || {
             let active = cockpit_a_active.get();
             let switch_aussen = switch_aussen.get();
-            let switch_standlicht = switch_aussen > 0;
+            let switch_standlicht = switch_aussen != OutsideLightSwitch::Off;
+            let switch_abblend = (switch_aussen == OutsideLightSwitch::Abblend)
+                || (switch_aussen == OutsideLightSwitch::Fern);
+            let switch_fern = switch_aussen == OutsideLightSwitch::Fern;
+
+            log::info!("switch_abblend: {}", switch_abblend);
 
             standlicht.set(switch_standlicht);
             ruecklicht.set(switch_standlicht);
             instrumente.set(switch_standlicht);
 
-            abblend.set(switch_aussen > 1 && active);
-            fern.set(switch_aussen > 2 && active);
-            lm_fernlicht.set(switch_aussen > 2 && active);
+            abblend.set(switch_abblend && active);
+            fern.set(switch_fern && active);
+            lm_fernlicht.set(switch_fern && active);
             rueckfahr.set(richtungswender.get() == RichtungswenderState::R);
             brems.set(sollwertgeber.get() < 0.0);
         },
@@ -275,35 +281,35 @@ fn blinker_lights(state: &Interface) {
             &switch_blinker.clone(),
         ],
         move || {
-            blinker_state.set(if switch_warnblinker.get() {
-                BlinkerSwitch::Warn
+            blinker_state.set(if switch_warnblinker.get().is_in() {
+                BlinkerState::Warn
             } else if cockpit_a_active.clone().get() {
                 match switch_blinker.get() {
-                    0 => BlinkerSwitch::Links,
-                    2 => BlinkerSwitch::Rechts,
-                    _ => BlinkerSwitch::Aus,
+                    BlinkerSwitch::Left => BlinkerState::Links,
+                    BlinkerSwitch::Right => BlinkerState::Rechts,
+                    _ => BlinkerState::Aus,
                 }
             } else {
-                BlinkerSwitch::Aus
+                BlinkerState::Aus
             });
         },
     );
 
-    state.systems.lights.blinker_lampe_rechts.on_change(
+    state.systems.lights.blinker_lampe_rechts.on_refresh(
         move |active| {
             lm_blinker_rechts.set(*active);
         },
         "blinker_lampe_rechts".to_string(),
     );
 
-    state.systems.lights.blinker_lampe_links.on_change(
+    state.systems.lights.blinker_lampe_links.on_refresh(
         move |active| {
             lm_blinker_links.set(*active);
         },
         "blinker_lampe_links".to_string(),
     );
 
-    state.systems.lights.lm_warnblinker.on_change(
+    state.systems.lights.lm_warnblinker.on_refresh(
         move |active| {
             lm_warnblinker.set(*active);
         },
@@ -316,7 +322,7 @@ fn inside_lights(state: &Interface) {
     let cockpit_begleiter = state.systems.lights.cockpit_begleiter.clone();
     let fahrgastraum = state.systems.lights.fahrgastraum.clone();
 
-    state.systems.cockpit.beleuchtung_fahrerraum.on_change(
+    state.systems.cockpit.beleuchtung_fahrerraum.on_refresh(
         move |active| {
             cockpit_main.set(*active >= 2);
             cockpit_begleiter.set(*active >= 1);
@@ -324,7 +330,7 @@ fn inside_lights(state: &Interface) {
         "switch_fahrerraum".to_string(),
     );
 
-    state.systems.cockpit.beleuchtung_fahrgastraum.on_change(
+    state.systems.cockpit.beleuchtung_fahrgastraum.on_refresh(
         move |active| {
             fahrgastraum.set(*active);
         },
@@ -355,12 +361,13 @@ async fn door_control(
         let speed = traction.speed.get();
         let door_switch = cockpit.tueren.get();
         let doors_closed = doors.all_closed.get();
-        let released = door_switch > 0 && speed < 1.0;
+        let released =
+            (door_switch == DoorSwitch::Released || door_switch == DoorSwitch::Open) && speed < 1.0;
 
         // Setze alle Status in einem Block
         let states = {
-            let all_request = released && door_switch == 2;
-            let switch_door_1 = door_switch < 0;
+            let all_request = released && door_switch == DoorSwitch::Open;
+            let switch_door_1 = door_switch == DoorSwitch::Tuer1;
             (released, all_request, switch_door_1)
         };
 

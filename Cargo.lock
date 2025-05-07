@@ -192,7 +192,6 @@ dependencies = [
 [[package]]
 name = "lotus-rt-extra"
 version = "0.1.0"
-source = "git+https://github.com/Oriolus-Software/lotus-rt-extra#000393c8b1b5f135bf2452f18827b68f8d28f20b"
 dependencies = [
  "bon",
  "lotus-rt",

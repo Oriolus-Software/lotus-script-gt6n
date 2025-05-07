@@ -19,7 +19,8 @@ lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-featu
     "sync",
     "macros",
 ] }
-lotus-rt-extra = { git = "https://github.com/Oriolus-Software/lotus-rt-extra" }
+# lotus-rt-extra = { git = "https://github.com/Oriolus-Software/lotus-rt-extra" }
+lotus-rt-extra = { path = "../lotus-rt-extra" }
 bon = "3"
 
 [profile.release]
