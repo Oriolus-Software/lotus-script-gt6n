@@ -4,6 +4,8 @@ use lights::add_lights;
 use lotus_script::{
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
     math::UVec2,
+    message::{send_message, Coupling, MessageMeta, MessageTarget},
+    prelude::MessageType,
     script,
     var::VariableType,
     Script,
@@ -30,6 +32,17 @@ script!(ScriptGt6n);
 pub struct ScriptGt6n {
     test_tex: Option<Texture>,
     // source_test_tex: Option<Texture>,
+}
+
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+enum BlinkerState {
+    #[default]
+    Off,
+    On,
+}
+
+impl MessageType for BlinkerState {
+    const MESSAGE_META: MessageMeta = MessageMeta::new("mc", "blinker", None);
 }
 
 impl Script for ScriptGt6n {
@@ -181,9 +194,50 @@ impl Script for ScriptGt6n {
         f32::get("v_Axle_mps_0_1").abs().set("v_Axle_mps_0_1_abs");
         f32::get("v_Axle_mps_2_0").abs().set("v_Axle_mps_2_0_abs");
         f32::get("v_Axle_mps_2_1").abs().set("v_Axle_mps_2_1_abs");
+
+        weichensounds();
+
+        if f32::get("A_CP_SW_Wischer") > 0.5 {
+            send_message(
+                if f32::get("A_CP_SW_Wischer") > 1.5 {
+                    &BlinkerState::On
+                } else {
+                    &BlinkerState::Off
+                },
+                [MessageTarget::AcrossCoupling {
+                    coupling: Coupling::Rear,
+                    cascade: true,
+                }],
+            )
+        };
     }
 
-    // fn on_message(&mut self, msg: lotus_script::message::Message) {
-    //     msg.handle(test_message_handle).ok();
-    // }
+    fn on_message(&mut self, msg: lotus_script::message::Message) {
+        msg.handle(|m: BlinkerState| {
+            match m {
+                BlinkerState::Off => {
+                    0.0.set("BlinkerRight");
+                }
+                BlinkerState::On => {
+                    1.0.set("BlinkerRight");
+                }
+            };
+            Ok(())
+        })
+        .ok();
+    }
+}
+
+fn weichensounds() {
+    let v = f32::get("v_Axle_mps_0_0");
+    let quality_a = i32::get("railquality_0_0");
+    let quality_b = i32::get("railquality_0_1");
+
+    if (2..=4).contains(&quality_a) || (2..=4).contains(&quality_b) {
+        1.0.set("Snd_Rumpeln_Weiche1");
+    } else {
+        0.0.set("Snd_Rumpeln_Weiche1");
+    }
+
+    (0.9 + v.abs() / 18.0).set("Snd_Rumpeln_Pitch");
 }
