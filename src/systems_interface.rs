@@ -1,11 +1,7 @@
 use lotus_rt::{spawn, wait};
 use lotus_rt_extra::{
     doors::DoorControlMode,
-    simple::{
-        add_and, add_converter, add_delay_relay, add_loop_sound, add_or, DelayRelayProperties,
-        LoopSoundProperties,
-    },
-    standard_elements::{multiple_on_change, Shared},
+    shared::{multiple_on_change, Shared},
 };
 use lotus_script::{log, var::VariableType};
 
@@ -41,21 +37,19 @@ struct Interface {
     interface: InterfaceState,
 }
 
-pub fn add_systems_interface(channels: SystemStates) {
+pub fn systems_interface(channels: SystemStates) {
     let channels_clone = channels.clone();
     let state = Interface {
         systems: channels,
         interface: InterfaceState {
-            cockpit_a_active: add_converter(
-                channels_clone.cockpit.richtungswender.clone(),
-                |r| !matches!(r, RichtungswenderState::O),
-                None,
-            ),
-            cockpit_a_drive: add_converter(
-                channels_clone.cockpit.richtungswender.clone(),
-                |r| matches!(r, RichtungswenderState::V | RichtungswenderState::R),
-                None,
-            ),
+            cockpit_a_active: channels_clone
+                .cockpit
+                .richtungswender
+                .process(|r| !matches!(r, RichtungswenderState::O)),
+            cockpit_a_drive: channels_clone
+                .cockpit
+                .richtungswender
+                .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
         },
     };
 
@@ -78,35 +72,27 @@ pub fn add_systems_interface(channels: SystemStates) {
 
     // Cockpit ---------------------------------------
 
-    add_and(
-        vec![
-            add_or(
-                vec![
-                    state.systems.cockpit.mg_bremse.clone(),
-                    state.systems.cockpit.klingel.clone(),
-                ],
-                None,
-            ),
-            state.interface.cockpit_a_active.clone(),
-        ],
-        Some(&state.systems.misc.klingel),
-    );
+    state
+        .systems
+        .cockpit
+        .mg_bremse
+        .or(&state.systems.cockpit.klingel)
+        .and(&state.interface.cockpit_a_active)
+        .forward(&state.systems.misc.klingel);
 
-    add_and(
-        vec![
-            state.systems.traction.federspeicher.clone(),
-            state.interface.cockpit_a_active.clone(),
-        ],
-        Some(&state.systems.cockpit.lm_federspeicher),
-    );
+    state
+        .systems
+        .cockpit
+        .lightcheck
+        .and(&state.interface.cockpit_a_active)
+        .forward(&state.systems.cockpit.lm_check);
 
-    add_and(
-        vec![
-            state.systems.cockpit.lightcheck.clone(),
-            state.interface.cockpit_a_active.clone(),
-        ],
-        Some(&state.systems.cockpit.lm_check.clone()),
-    );
+    state
+        .systems
+        .traction
+        .federspeicher
+        .and(&state.interface.cockpit_a_active)
+        .forward(&state.systems.cockpit.lm_federspeicher);
 
     // Doors ---------------------------------------
 
@@ -119,19 +105,15 @@ pub fn add_systems_interface(channels: SystemStates) {
 
     // Misc Systems ---------------------------------------
 
-    add_loop_sound(
-        LoopSoundProperties::builder()
-            .loop_sound("Snd_Cabin_IdleI".to_string())
-            .set_active(state.interface.cockpit_a_active.clone())
-            .build(),
-    );
+    state
+        .interface
+        .cockpit_a_active
+        .loop_sound("Snd_Cabin_IdleI".to_string());
 
-    add_loop_sound(
-        LoopSoundProperties::builder()
-            .loop_sound("Snd_Cabin_IdleVR".to_string())
-            .set_active(state.interface.cockpit_a_drive.clone())
-            .build(),
-    );
+    state
+        .interface
+        .cockpit_a_drive
+        .loop_sound("Snd_Cabin_IdleVR".to_string());
 }
 
 async fn federspeicher(cockpit: CockpitState, traction: TractionState, interface: InterfaceState) {
@@ -295,26 +277,29 @@ fn blinker_lights(state: &Interface) {
         },
     );
 
-    state.systems.lights.blinker_lampe_rechts.on_refresh(
-        move |active| {
+    state
+        .systems
+        .lights
+        .blinker_lampe_rechts
+        .on_refresh(move |active| {
             lm_blinker_rechts.set(*active);
-        },
-        "blinker_lampe_rechts".to_string(),
-    );
+        });
 
-    state.systems.lights.blinker_lampe_links.on_refresh(
-        move |active| {
+    state
+        .systems
+        .lights
+        .blinker_lampe_links
+        .on_refresh(move |active| {
             lm_blinker_links.set(*active);
-        },
-        "blinker_lampe_links".to_string(),
-    );
+        });
 
-    state.systems.lights.lm_warnblinker.on_refresh(
-        move |active| {
+    state
+        .systems
+        .lights
+        .lm_warnblinker
+        .on_refresh(move |active| {
             lm_warnblinker.set(*active);
-        },
-        "blinker_for_lm_warnblinker".to_string(),
-    );
+        });
 }
 
 fn inside_lights(state: &Interface) {
@@ -322,20 +307,22 @@ fn inside_lights(state: &Interface) {
     let cockpit_begleiter = state.systems.lights.cockpit_begleiter.clone();
     let fahrgastraum = state.systems.lights.fahrgastraum.clone();
 
-    state.systems.cockpit.beleuchtung_fahrerraum.on_refresh(
-        move |active| {
+    state
+        .systems
+        .cockpit
+        .beleuchtung_fahrerraum
+        .on_refresh(move |active| {
             cockpit_main.set(*active >= 2);
             cockpit_begleiter.set(*active >= 1);
-        },
-        "switch_fahrerraum".to_string(),
-    );
+        });
 
-    state.systems.cockpit.beleuchtung_fahrgastraum.on_refresh(
-        move |active| {
+    state
+        .systems
+        .cockpit
+        .beleuchtung_fahrgastraum
+        .on_refresh(move |active| {
             fahrgastraum.set(*active);
-        },
-        "switch_fahrgastraum".to_string(),
-    );
+        });
 }
 
 async fn door_control(
@@ -348,14 +335,9 @@ async fn door_control(
 
     let shared_doors_closed = Shared::<bool>::default();
 
-    add_delay_relay(
-        DelayRelayProperties {
-            on_delay: 0.1,
-            off_delay: 0.0,
-            set: shared_doors_closed.clone(),
-        },
-        Some(&cockpit.lm_doors_closed.clone()),
-    );
+    shared_doors_closed
+        .delay_relay(0.1, 0.0)
+        .forward(&cockpit.lm_doors_closed);
 
     loop {
         let speed = traction.speed.get();

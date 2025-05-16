@@ -1,7 +1,7 @@
 use lotus_rt::{spawn, wait};
 use lotus_script::{time::delta, var::VariableType};
 
-use lotus_rt_extra::standard_elements::Shared;
+use lotus_rt_extra::shared::Shared;
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;

@@ -1,13 +1,11 @@
 use lotus_rt_extra::{
     cockpit_simple::{
-        add_button_inout, add_button_twosided_springloaded, add_indicator_light, add_std_button,
-        add_step_switch, add_switch, ButtonInOutState, ButtonProperties,
-        ButtonTwoSidedSpringLoadedProperties, ButtonTwoSidedSpringLoadedState,
-        IndicatorLightProperties, StepSwitchProperties, SwitchProperties,
+        button_inout, button_twosided_springloaded, std_button, step_switch, switch,
+        ButtonInOutState, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
+        ButtonTwoSidedSpringLoadedState, StepSwitchProperties, SwitchProperties,
     },
-    drive_control::{add_sollwertgeber, SollwertgeberProperties},
-    simple::{add_converter, add_start_stop_sound, StartStopSoundProperties},
-    standard_elements::Shared,
+    drive_control::{sollwertgeber, SollwertgeberProperties},
+    shared::Shared,
 };
 
 use crate::cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState};
@@ -59,7 +57,7 @@ pub fn add_cockpit() -> CockpitState {
     let rw_lock = Shared::new(false);
     let voltage_r = Shared::<f32>::new(1.0);
 
-    let richtungswender = add_step_switch::<RichtungswenderState>(
+    let richtungswender = step_switch::<RichtungswenderState>(
         StepSwitchProperties::builder()
             .input_event_plus("ReverserPlus")
             .input_event_minus("ReverserMinus")
@@ -73,14 +71,12 @@ pub fn add_cockpit() -> CockpitState {
         None::<fn() -> RichtungswenderState>,
     );
 
-    let sollwertgeber = add_sollwertgeber(
+    let sollwertgeber = sollwertgeber(
         SollwertgeberProperties::builder()
             .animation("A_CP_Sollwertgeber")
-            .lock(add_converter(
-                richtungswender.clone(),
-                |state| matches!(state, RichtungswenderState::O | RichtungswenderState::I),
-                None,
-            ))
+            .lock(richtungswender.process(|state| {
+                matches!(state, RichtungswenderState::O | RichtungswenderState::I)
+            }))
             .speed((1.0, 5.0, 20.0))
             .rw_lock(rw_lock.clone())
             .input_events((
@@ -99,8 +95,8 @@ pub fn add_cockpit() -> CockpitState {
 
     let lm_check = Shared::new(false);
 
-    let add_std_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
-        add_std_button(
+    let gt6n_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
+        std_button(
             ButtonProperties::builder()
                 .input_event(input_event)
                 .animation_var(animation_var)
@@ -110,14 +106,14 @@ pub fn add_cockpit() -> CockpitState {
         )
     };
 
-    let add_std_lm = |variable: &str| -> Shared<bool> {
-        add_indicator_light(
-            IndicatorLightProperties::builder()
-                .variable(variable)
-                .lighttest(lm_check.clone())
-                .voltage(voltage_r.clone())
-                .build(),
-        )
+    let std_lm = |variable: &str| -> Shared<bool> {
+        let value = Shared::default();
+        value
+            .or(&lm_check)
+            .to_float()
+            .multiply(&voltage_r)
+            .var_writer(variable);
+        value
     };
 
     let state = CockpitState {
@@ -125,15 +121,15 @@ pub fn add_cockpit() -> CockpitState {
         sollwertgeber,
         lm_check: lm_check.clone(),
 
-        sanden: add_std_button("Sanding", "A_CP_TS_Sanden"),
-        mg_bremse: add_std_button("RailBrake", "A_CP_TS_MgBremse"),
-        klingel: add_std_button("Bell1", "A_CP_TS_Klingel"),
-        kinderwagen: add_std_button("ResetBuggy", "A_CP_TS_KiWa"),
-        rollstuhl: add_std_button("ResetWheelchair", "A_CP_TS_Rolli"),
-        sifa: add_std_button("HoldToRun_Btn", "A_CP_TS_SiFa"),
-        lightcheck: add_std_button("Lightcheck", "A_CP_TS_Lampentest"),
+        sanden: gt6n_button("Sanding", "A_CP_TS_Sanden"),
+        mg_bremse: gt6n_button("RailBrake", "A_CP_TS_MgBremse"),
+        klingel: gt6n_button("Bell1", "A_CP_TS_Klingel"),
+        kinderwagen: gt6n_button("ResetBuggy", "A_CP_TS_KiWa"),
+        rollstuhl: gt6n_button("ResetWheelchair", "A_CP_TS_Rolli"),
+        sifa: gt6n_button("HoldToRun_Btn", "A_CP_TS_SiFa"),
+        lightcheck: gt6n_button("Lightcheck", "A_CP_TS_Lampentest"),
 
-        pantograph: add_button_twosided_springloaded(
+        pantograph: button_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("PantographDn")
                 .input_event_plus("PantographUp")
@@ -142,7 +138,7 @@ pub fn add_cockpit() -> CockpitState {
                 .sound_off("Snd_CP_A_RotBtnOff")
                 .build(),
         ),
-        hauptschalter: add_button_twosided_springloaded(
+        hauptschalter: button_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("HighVoltageMainSwitchOff")
                 .input_event_plus("HighVoltageMainSwitchOn")
@@ -152,7 +148,7 @@ pub fn add_cockpit() -> CockpitState {
                 .build(),
         ),
 
-        federspeicher_overwrite: add_button_inout(
+        federspeicher_overwrite: button_inout(
             ButtonProperties::builder()
                 .input_event("FspDeactiveToggle")
                 .animation_var("A_CP_TS_Fsp")
@@ -160,7 +156,7 @@ pub fn add_cockpit() -> CockpitState {
                 .sound_off("Snd_CP_A_BtnUp")
                 .build(),
         ),
-        beleuchtung_aussen: add_step_switch::<OutsideLightSwitch>(
+        beleuchtung_aussen: step_switch::<OutsideLightSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus("FrontLightMinus")
                 .input_event_plus("FrontLightPlus")
@@ -172,7 +168,7 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> OutsideLightSwitch>,
             None::<fn() -> OutsideLightSwitch>,
         ),
-        blinker: add_step_switch::<BlinkerSwitch>(
+        blinker: step_switch::<BlinkerSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus("IndicatorToLeft")
                 .input_event_plus("IndicatorToRight")
@@ -184,7 +180,7 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> BlinkerSwitch>,
             None::<fn() -> BlinkerSwitch>,
         ),
-        warnblinker: add_button_inout(
+        warnblinker: button_inout(
             ButtonProperties::builder()
                 .input_event("IndicatorWarn")
                 .animation_var("A_CP_TS_Warnblinker")
@@ -193,14 +189,14 @@ pub fn add_cockpit() -> CockpitState {
                 .build(),
         ),
 
-        beleuchtung_fahrgastraum: add_switch(
+        beleuchtung_fahrgastraum: switch(
             SwitchProperties::builder()
                 .toggle_event("CabinLightToggle")
                 .animation_var("A_CP_SW_Innenbel")
                 .sound_switch("Snd_CP_A_Switch")
                 .build(),
         ),
-        beleuchtung_fahrerraum: add_step_switch(
+        beleuchtung_fahrerraum: step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus("CockpitLightMinus")
                 .input_event_plus("CockpitLightPlus")
@@ -213,7 +209,7 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> i8>,
         ),
 
-        tueren: add_step_switch::<DoorSwitch>(
+        tueren: step_switch::<DoorSwitch>(
             StepSwitchProperties::builder()
                 .input_event_plus("DoorsPlus")
                 .input_event_minus("DoorsMinus")
@@ -227,7 +223,7 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> DoorSwitch>,
         ),
 
-        scheibenwischer: add_step_switch(
+        scheibenwischer: step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus("WiperMinus")
                 .input_event_plus("WiperPlus")
@@ -239,7 +235,7 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> i8>,
             None::<fn() -> i8>,
         ),
-        sprechstelle: add_button_twosided_springloaded(
+        sprechstelle: button_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("SprechstelleClear")
                 .input_event_plus("SprechstelleSpeak")
@@ -248,7 +244,7 @@ pub fn add_cockpit() -> CockpitState {
                 .sound_off("Snd_CP_A_RotBtnOff")
                 .build(),
         ),
-        zugbildung: add_step_switch(
+        zugbildung: step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus("ZugbildungMinus")
                 .input_event_plus("ZugbildungPlus")
@@ -261,33 +257,28 @@ pub fn add_cockpit() -> CockpitState {
             None::<fn() -> i8>,
         ),
 
-        lm_federspeicher: add_std_lm("A_LM_FSp"),
+        lm_federspeicher: std_lm("A_LM_FSp"),
 
-        lm_fernlicht: add_std_lm("A_LM_Fernlicht"),
+        lm_fernlicht: std_lm("A_LM_Fernlicht"),
 
-        lm_blinker_rechts: add_std_lm("A_LM_BlinkerRechts"),
-        lm_blinker_links: add_std_lm("A_LM_BlinkerLinks"),
-        lm_warnblinker: add_std_lm("A_LM_Warnblinken"),
+        lm_blinker_rechts: std_lm("A_LM_BlinkerRechts"),
+        lm_blinker_links: std_lm("A_LM_BlinkerLinks"),
+        lm_warnblinker: std_lm("A_LM_Warnblinken"),
 
-        lm_doors_closed: add_std_lm("A_LM_DoorsClosed"),
-        lm_haltewunsch: add_std_lm("A_LM_Haltewunsch"),
-        lm_kinderwagen: add_std_lm("A_LM_Kinderwagen"),
-        lm_rollstuhl: add_std_lm("A_LM_Rollstuhl"),
+        lm_doors_closed: std_lm("A_LM_DoorsClosed"),
+        lm_haltewunsch: std_lm("A_LM_Haltewunsch"),
+        lm_kinderwagen: std_lm("A_LM_Kinderwagen"),
+        lm_rollstuhl: std_lm("A_LM_Rollstuhl"),
 
-        lm_schienenbremse: add_std_lm("A_LM_Schienenbremse"),
-        lm_sifa: add_std_lm("A_LM_Sifa"),
-        lm_sprechstelle: add_std_lm("A_LM_Sprechstelle"),
-        lm_hauptschalter: add_std_lm("A_LM_Hauptschalter"),
-        lm_notstart: add_std_lm("A_LM_Notstart"),
-        lm_notablegen: add_std_lm("A_LM_Notablegen"),
+        lm_schienenbremse: std_lm("A_LM_Schienenbremse"),
+        lm_sifa: std_lm("A_LM_Sifa"),
+        lm_sprechstelle: std_lm("A_LM_Sprechstelle"),
+        lm_hauptschalter: std_lm("A_LM_Hauptschalter"),
+        lm_notstart: std_lm("A_LM_Notstart"),
+        lm_notablegen: std_lm("A_LM_Notablegen"),
     };
 
-    add_start_stop_sound(
-        StartStopSoundProperties::builder()
-            .start_sound("Snd_CP_A_DoorsClosed".to_string())
-            .set_active(state.lm_doors_closed.clone())
-            .build(),
-    );
+    state.lm_doors_closed.trigger_sound("Snd_CP_A_DoorsClosed");
 
     state
 }

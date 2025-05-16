@@ -2,23 +2,17 @@ use lotus_script::log;
 
 use lotus_rt_extra::{
     combined::{
-        add_blink_relais_multiple_entries, add_blink_relais_with_light_and_sound,
-        BlinkRelaisMultipleEntriesProperties, BlinkRelaisWithLightAndSoundProperties,
-        LightAndSoundVarPair,
+        blink_relais_multiple_entries, BlinkRelaisMultipleEntriesProperties,
+        BlinkRelaisWithLightAndSoundProperties, LightAndSoundVarPair,
     },
     doors::{
-        add_door_control, add_door_warning_outside_relay_with_stop_on_speed,
-        add_electric_sliding_plug_door_pair, DoorControlMode, DoorControlProperties,
-        DoorControlState, DoorWarningOutsideRelayWithStopOnSpeedProperties,
+        door_control, door_warning_outside_relay_with_stop_on_speed, DoorControlMode,
+        DoorControlProperties, DoorControlState, DoorWarningOutsideRelayWithStopOnSpeedProperties,
         ElectricSlidingPlugDoorPairPositionState, ElectricSlidingPlugDoorPairProperties,
-        ElectricSlidingPlugDoorPairState,
+        ElectricSlidingPlugDoorPairState, ElectricSlidingPlugDoorPairTarget,
     },
-    simple::{
-        add_and, add_blink_relais, add_bool_to_float_var_unit, add_bool_to_sound_unit,
-        add_converter, BlinkRelaisProperties, BoolToFloatVarUnitProperties,
-        BoolToSoundUnitProperties,
-    },
-    standard_elements::Shared,
+    shared::Shared,
+    simple::BlinkRelaisProperties,
 };
 
 const PLUG_RADIUS: f32 = 0.06;
@@ -60,13 +54,15 @@ pub fn add_doors() -> DoorsState {
         .take(4)
         .collect();
 
-    let add_door_with_controller =
+    let door_with_controller =
         |door_number: usize,
          start_speed: f32,
          close_start_speed: f32,
          reflection_open: f32,
          reflection_close: f32,
          door_1_force: Option<Shared<DoorControlMode>>| {
+            let door_target = Shared::new(ElectricSlidingPlugDoorPairTarget::NoEnergy);
+
             let door_prop = ElectricSlidingPlugDoorPairProperties::builder()
                 .plug_radius(PLUG_RADIUS)
                 .shift_distance(SHIFT_DISTANCE)
@@ -90,7 +86,7 @@ pub fn add_doors() -> DoorsState {
                 .variable_y_blade_b(format!("Door_{}_2", door_number + 1))
                 .build();
 
-            let door = add_electric_sliding_plug_door_pair(door_prop);
+            let door = door_target.electric_sliding_plug_door_pair(door_prop);
 
             let control_properties = DoorControlProperties::builder()
                 .request_time(6.0)
@@ -98,7 +94,6 @@ pub fn add_doors() -> DoorsState {
                 .set_system_active(system_active.clone())
                 .set_request(requests[door_number].clone())
                 .set_released(released.clone())
-                .get_door_target(door.set_target.clone())
                 .set_door_closed(door.position.clone());
 
             let control_properties = if let Some(force) = door_1_force {
@@ -107,13 +102,11 @@ pub fn add_doors() -> DoorsState {
                 control_properties.build()
             };
 
-            let control = add_door_control(control_properties);
+            let control = door_control(control_properties);
 
-            let closed = add_converter(
-                door.position.clone(),
-                |v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed,
-                None,
-            );
+            let closed = door
+                .position
+                .process(|v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed);
 
             DoorsWithController {
                 door,
@@ -123,10 +116,10 @@ pub fn add_doors() -> DoorsState {
         };
 
     let doors_with_controller = vec![
-        add_door_with_controller(0, 0.6, 0.5, 0.03, 0.05, Some(door_1_force.clone())),
-        add_door_with_controller(1, 0.65, 0.45, 0.05, 0.05, None),
-        add_door_with_controller(2, 0.62, 0.42, 0.05, 0.05, None),
-        add_door_with_controller(3, 0.58, 0.48, 0.03, 0.05, None),
+        door_with_controller(0, 0.6, 0.5, 0.03, 0.05, Some(door_1_force.clone())),
+        door_with_controller(1, 0.65, 0.45, 0.05, 0.05, None),
+        door_with_controller(2, 0.62, 0.42, 0.05, 0.05, None),
+        door_with_controller(3, 0.58, 0.48, 0.03, 0.05, None),
     ];
 
     let state = DoorsState {
@@ -136,42 +129,32 @@ pub fn add_doors() -> DoorsState {
         requests,
         door_1_override: door_1_force,
         override_no_warning: Shared::new(false),
-        all_closed: add_and(
+        all_closed: Shared::<bool>::and_vec(
             doors_with_controller
                 .clone()
                 .iter()
                 .map(|v| v.closed.clone())
                 .collect(),
-            None,
         ),
     };
 
-    let bla = add_converter(
-        state.door_1_override.clone(),
-        |v| *v == DoorControlMode::Automatic,
-        None,
-    );
+    state
+        .door_1_override
+        .process(|v| *v == DoorControlMode::Automatic)
+        .and(&state.doors_with_controller[0].control.warning)
+        .blink_relais_with_light_and_sound(BlinkRelaisWithLightAndSoundProperties {
+            blink_relais_properties: BlinkRelaisProperties {
+                interval: 0.777,
+                on_time: 0.388,
+                reset_time: None,
+            },
+            light_and_sound: LightAndSoundVarPair {
+                light: "Door_1_WarnlightI".to_string(),
+                sound: "Snd_Door_1_Warning".to_string(),
+            },
+        });
 
-    add_blink_relais_with_light_and_sound(BlinkRelaisWithLightAndSoundProperties {
-        blink_relais_properties: BlinkRelaisProperties {
-            interval: 0.777,
-            on_time: 0.388,
-            reset_time: None,
-            set_running: add_and(
-                vec![
-                    state.doors_with_controller[0].control.warning.clone(),
-                    bla.clone(),
-                ],
-                None,
-            ),
-        },
-        light_and_sound: LightAndSoundVarPair {
-            light: "Door_1_WarnlightI".to_string(),
-            sound: "Snd_Door_1_Warning".to_string(),
-        },
-    });
-
-    add_blink_relais_multiple_entries(BlinkRelaisMultipleEntriesProperties {
+    blink_relais_multiple_entries(BlinkRelaisMultipleEntriesProperties {
         interval: 0.777,
         on_time: 0.388,
         reset_time: None,
@@ -200,16 +183,15 @@ pub fn add_doors() -> DoorsState {
         ],
     });
 
-    let all_doors_closed = add_and(
+    let all_doors_closed = Shared::<bool>::and_vec(
         state
             .doors_with_controller
             .iter()
             .map(|v| v.closed.clone())
             .collect(),
-        None,
     );
 
-    let warning_outside_relay = add_door_warning_outside_relay_with_stop_on_speed(
+    let warning_outside_relay = door_warning_outside_relay_with_stop_on_speed(
         DoorWarningOutsideRelayWithStopOnSpeedProperties::builder()
             .timer_after_closed(30.0)
             .max_speed(3.0 / 3.6)
@@ -219,30 +201,19 @@ pub fn add_doors() -> DoorsState {
             .build(),
     );
 
-    add_bool_to_sound_unit(BoolToSoundUnitProperties {
-        set_bool: warning_outside_relay.warning.clone(),
-        sound: "Snd_Relais_Doorwarn".to_string(),
-    });
+    warning_outside_relay.var_writer("Snd_Relais_Doorwarn");
 
-    let outside_warning_blinker_relais = add_blink_relais(
-        BlinkRelaisProperties {
+    let outside_warning_blinker_relais =
+        warning_outside_relay.blink_relais(BlinkRelaisProperties {
             interval: 0.393,
             on_time: 0.196,
             reset_time: None,
-            set_running: warning_outside_relay.warning.clone(),
-        },
-        None,
-    );
+        });
 
-    add_bool_to_float_var_unit(BoolToFloatVarUnitProperties {
-        set_bool: outside_warning_blinker_relais.on.clone(),
-        float: "Door_1_WarnlightO".to_string(),
-    });
-
-    add_bool_to_float_var_unit(BoolToFloatVarUnitProperties {
-        set_bool: outside_warning_blinker_relais.on.clone(),
-        float: "Door_234_WarnlightO".to_string(),
-    });
+    outside_warning_blinker_relais
+        .to_float()
+        .var_writer("Door_1_WarnlightO")
+        .var_writer("Door_234_WarnlightO");
 
     state
 }

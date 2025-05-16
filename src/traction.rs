@@ -3,14 +3,13 @@ use lotus_script::var::VariableType;
 
 use lotus_rt_extra::{
     brake::{
-        add_brake_combination, add_rail_brake, add_sanding_unit, BrakeCombinationElement,
-        BrakeCombinationProperties, RailBrakeProperties, SandingUnitProperties,
+        brake_combination, BrakeCombinationElement, BrakeCombinationProperties,
+        RailBrakeProperties, SandingUnitProperties,
     },
-    simple::{add_copy, add_delay_relay, add_var_reader, add_var_writer, DelayRelayProperties},
-    standard_elements::Shared,
+    shared::Shared,
     traction::{
-        add_three_phase_traction_unit, ThreePhaseTractionUnitProperties,
-        ThreePhaseTractionUnitState, TractionUnitMode,
+        three_phase_traction_unit, ThreePhaseTractionUnitProperties, ThreePhaseTractionUnitState,
+        TractionUnitMode,
     },
 };
 
@@ -57,11 +56,11 @@ pub fn add_traction() -> TractionState {
     let target_force = Shared::new(0.0);
 
     let add_traction_unit = |bogie: usize, axle: usize, vehicle_part: String| -> TractionUnit {
-        let wheelspeed = add_var_reader::<f32>(format!("v_Axle_mps_{bogie}_{axle}"), None);
+        let wheelspeed = Shared::<f32>::var_reader(format!("v_Axle_mps_{bogie}_{axle}"));
 
         let mg_relay = Shared::new(false);
 
-        let traction_unit = add_three_phase_traction_unit(
+        let traction_unit = three_phase_traction_unit(
             ThreePhaseTractionUnitProperties::builder()
                 .max_force_acceleration(16_000.0)
                 .max_power_acceleration(100_000.0)
@@ -76,35 +75,31 @@ pub fn add_traction() -> TractionState {
                 .set_source_voltage(Shared::new(1.0))
                 .build(),
         );
-        add_rail_brake(
-            RailBrakeProperties::builder()
-                .reference_force(128_000.0)
-                .min_voltage(0.8)
-                .sound_pitch_base(0.8)
-                .sound_pitch_per_mps(0.05)
-                .bogie_index(bogie)
-                .variable_sound_volume(format!("Snd_Mg_{vehicle_part}_Friction_vol"))
-                .variable_sound_control(format!("Snd_Mg_{vehicle_part}"))
-                .variable_sound_pitch("Snd_Mg_Friction_pitch")
-                .set_active(add_delay_relay(
-                    DelayRelayProperties::builder()
-                        .on_delay(0.14)
-                        .off_delay(0.14)
-                        .set(mg_relay.clone())
-                        .build(),
-                    None,
-                ))
-                .set_voltage(Shared::new(1.0))
-                .build(),
-        );
-        add_var_writer(
-            format!("M_Axle_N_{bogie}_{axle}"),
-            traction_unit.wheel_force.clone(),
-        );
-        add_var_writer(
-            format!("Snd_Traction_{vehicle_part}"),
-            traction_unit.wheel_force.clone(),
-        );
+
+        let voltage = Shared::new(1.0f32);
+
+        mg_relay
+            .delay_relay(0.14, 0.14)
+            .to_float()
+            .multiply(&voltage)
+            .rail_brake(
+                RailBrakeProperties::builder()
+                    .reference_force(128_000.0)
+                    .min_voltage(0.8)
+                    .sound_pitch_base(0.8)
+                    .sound_pitch_per_mps(0.05)
+                    .bogie_index(bogie)
+                    .variable_sound_volume(format!("Snd_Mg_{vehicle_part}_Friction_vol"))
+                    .variable_sound_control(format!("Snd_Mg_{vehicle_part}"))
+                    .variable_sound_pitch("Snd_Mg_Friction_pitch")
+                    .build(),
+            );
+        traction_unit
+            .wheel_force
+            .var_writer(format!("M_Axle_N_{bogie}_{axle}"));
+        traction_unit
+            .wheel_force
+            .var_writer(format!("Snd_Traction_{vehicle_part}"));
         TractionUnit {
             traction_unit,
             wheelspeed,
@@ -118,40 +113,37 @@ pub fn add_traction() -> TractionState {
         add_traction_unit(2, 0, "B".into()),
     ];
 
-    add_sanding_unit(
+    state.sanding.sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(0_usize)
             .axle_index(1_usize)
             .sound_start("Snd_Sanden_Strt")
             .sound_loop("Snd_Sanden_Loop")
             .sound_stop("Snd_Sanden_Stop")
-            .set_active(state.sanding.clone())
             .build(),
     );
-    add_sanding_unit(
+    state.sanding.sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(1_usize)
             .axle_index(1_usize)
-            .set_active(state.sanding.clone())
             .build(),
     );
-    add_sanding_unit(
+    state.sanding.sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(2_usize)
             .axle_index(0_usize)
-            .set_active(state.sanding.clone())
             .build(),
     );
 
     for traction_unit in traction_units.iter() {
-        add_copy(state.mg.clone(), Some(&traction_unit.mg_relay.clone()));
+        state.mg.clone().forward(&traction_unit.mg_relay);
     }
 
     let hydraulic_brake_target = Shared::new(0.0);
     let parking_brake_target = Shared::new(0.0);
 
     let add_brake_unit = |bogie: usize, axle: usize| {
-        add_brake_combination(
+        brake_combination(
             BrakeCombinationProperties::builder()
                 .variable(format!("MBrake_Axle_N_{bogie}_{axle}"))
                 .elements(vec![

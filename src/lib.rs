@@ -11,8 +11,8 @@ use lotus_script::{
     Script,
 };
 use misc::add_misc;
-use passenger_elements::add_passenger_elements;
-use systems_interface::{add_systems_interface, SystemStates};
+use passenger_elements::passenger_elements;
+use systems_interface::{systems_interface, SystemStates};
 use traction::add_traction;
 
 pub mod cockpit;
@@ -47,9 +47,9 @@ impl MessageType for BlinkerState {
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
-        add_systems_interface(SystemStates {
+        systems_interface(SystemStates {
             cockpit: add_cockpit(),
-            passenger: add_passenger_elements(),
+            passenger: passenger_elements(),
             traction: add_traction(),
             lights: add_lights(),
             misc: add_misc(),
