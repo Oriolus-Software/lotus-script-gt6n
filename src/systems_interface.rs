@@ -45,11 +45,11 @@ pub fn systems_interface(channels: SystemStates) {
             cockpit_a_active: channels_clone
                 .cockpit
                 .richtungswender
-                .process(|r| !matches!(r, RichtungswenderState::O)),
-            cockpit_a_drive: channels_clone
-                .cockpit
-                .richtungswender
-                .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
+                .process(|r| !matches!(r, RichtungswenderState::O), false),
+            cockpit_a_drive: channels_clone.cockpit.richtungswender.process(
+                |r| matches!(r, RichtungswenderState::V | RichtungswenderState::R),
+                false,
+            ),
         },
     };
 
@@ -75,6 +75,7 @@ pub fn systems_interface(channels: SystemStates) {
     state
         .systems
         .cockpit
+        // .klingel
         .mg_bremse
         .or(&state.systems.cockpit.klingel)
         .and(&state.interface.cockpit_a_active)

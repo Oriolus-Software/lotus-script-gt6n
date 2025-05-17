@@ -42,7 +42,7 @@ pub struct DoorsWithController {
     pub closed: Shared<bool>,
 }
 
-pub fn add_doors() -> DoorsState {
+pub fn doors() -> DoorsState {
     log::info!("Adding doors ------------------------------");
 
     let system_active = Shared::new(true);
@@ -104,9 +104,12 @@ pub fn add_doors() -> DoorsState {
 
             let control = door_control(control_properties);
 
-            let closed = door
-                .position
-                .process(|v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed);
+            control.door_target.forward(&door_target);
+
+            let closed = door.position.process(
+                |v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed,
+                false,
+            );
 
             DoorsWithController {
                 door,
@@ -140,7 +143,7 @@ pub fn add_doors() -> DoorsState {
 
     state
         .door_1_override
-        .process(|v| *v == DoorControlMode::Automatic)
+        .process(|&v| v == DoorControlMode::Automatic, true)
         .and(&state.doors_with_controller[0].control.warning)
         .blink_relais_with_light_and_sound(BlinkRelaisWithLightAndSoundProperties {
             blink_relais_properties: BlinkRelaisProperties {

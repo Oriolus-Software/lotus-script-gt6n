@@ -74,9 +74,10 @@ pub fn add_cockpit() -> CockpitState {
     let sollwertgeber = sollwertgeber(
         SollwertgeberProperties::builder()
             .animation("A_CP_Sollwertgeber")
-            .lock(richtungswender.process(|state| {
-                matches!(state, RichtungswenderState::O | RichtungswenderState::I)
-            }))
+            .lock(richtungswender.process(
+                |state| matches!(state, RichtungswenderState::O | RichtungswenderState::I),
+                true,
+            ))
             .speed((1.0, 5.0, 20.0))
             .rw_lock(rw_lock.clone())
             .input_events((
@@ -113,6 +114,7 @@ pub fn add_cockpit() -> CockpitState {
             .to_float()
             .multiply(&voltage_r)
             .var_writer(variable);
+        // value.set(false);
         value
     };
 

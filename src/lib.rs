@@ -1,5 +1,5 @@
 use cockpit::add_cockpit;
-use doors::add_doors;
+use doors::doors;
 use lights::add_lights;
 use lotus_script::{
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
@@ -53,7 +53,7 @@ impl Script for ScriptGt6n {
             traction: add_traction(),
             lights: add_lights(),
             misc: add_misc(),
-            doors: add_doors(),
+            doors: doors(),
         });
 
         true.set("Coupling_A_vis");
