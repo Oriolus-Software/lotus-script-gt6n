@@ -1,5 +1,5 @@
 use lotus_rt::{spawn, wait};
-use lotus_script::{time::delta, var::VariableType};
+use lotus_script::{time::delta, var::set_var};
 
 use lotus_rt_extra::shared::Shared;
 
@@ -36,7 +36,7 @@ pub fn add_lights() -> LightState {
     spawn(async move {
         loop {
             fn set_light(c: &LightState, b: &Shared<bool>, variable: &str) {
-                c.voltage.switch(b.get()).set(variable);
+                set_var(variable, &c.voltage.switch(b.get()));
             }
 
             fn running_blinker(c: &LightState, s: &mut BlinkgeberState) {
@@ -52,9 +52,9 @@ pub fn add_lights() -> LightState {
 
                 if s.update(delta()) {
                     if s.on {
-                        true.set("Snd_Relais_Blinker_On");
+                        set_var("Snd_Relais_Blinker_On", &true);
                     } else {
-                        true.set("Snd_Relais_Blinker_Off");
+                        set_var("Snd_Relais_Blinker_Off", &true);
                     }
                 }
             }

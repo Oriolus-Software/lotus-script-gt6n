@@ -1,5 +1,4 @@
 use lotus_rt::{spawn, wait};
-use lotus_script::var::VariableType;
 
 use lotus_rt_extra::{
     brake::{
@@ -12,6 +11,7 @@ use lotus_rt_extra::{
         TractionUnitMode,
     },
 };
+use lotus_script::var::{get_var, set_var};
 
 const VMAX: f32 = 60.0 / 3.6;
 const VMAX_BACK: f32 = 15.0 / 3.6;
@@ -55,7 +55,7 @@ pub fn add_traction() -> TractionState {
     let traction_mode = Shared::new(TractionUnitMode::Off);
     let target_force = Shared::new(0.0);
 
-    let add_traction_unit = |bogie: usize, axle: usize, vehicle_part: String| -> TractionUnit {
+    let traction_unit = |bogie: usize, axle: usize, vehicle_part: String| -> TractionUnit {
         let wheelspeed = Shared::<f32>::var_reader(format!("v_Axle_mps_{bogie}_{axle}"));
 
         let mg_relay = Shared::new(false);
@@ -108,9 +108,9 @@ pub fn add_traction() -> TractionState {
     };
 
     let traction_units = [
-        add_traction_unit(0, 1, "A".into()),
-        add_traction_unit(1, 1, "C".into()),
-        add_traction_unit(2, 0, "B".into()),
+        traction_unit(0, 1, "A".into()),
+        traction_unit(1, 1, "C".into()),
+        traction_unit(2, 0, "B".into()),
     ];
 
     state.sanding.sanding_unit(
@@ -192,7 +192,7 @@ pub fn add_traction() -> TractionState {
                 let reversed = richtungswender == TractionDirection::Backward;
 
                 // für den Gleitschutz wird das linke Rad am Drehgstell des mittleren Wagenteils benutzt
-                let speed = f32::get("v_Axle_mps_1_0");
+                let speed = get_var::<f32>("v_Axle_mps_1_0");
                 speed_shared.set_only_on_change(speed);
 
                 let speed_in_dir = if reversed { -speed } else { speed };
@@ -253,12 +253,14 @@ pub fn add_traction() -> TractionState {
 
                 // Pneumatic Brake ----------------------------------------------------------------
 
-                (if mode == TractionUnitMode::Brake {
-                    traction_units[0].traction_unit.wheel_force.get().abs() / MAXBRAKEFORCE_N
-                } else {
-                    0.0
-                })
-                .set("Snd_BrakeFlirr");
+                set_var(
+                    "Snd_BrakeFlirr",
+                    &(if mode == TractionUnitMode::Brake {
+                        traction_units[0].traction_unit.wheel_force.get().abs() / MAXBRAKEFORCE_N
+                    } else {
+                        0.0
+                    }),
+                );
 
                 let mut pneu_target = if (mode_fixed && !federspeicher_active) || max_brake {
                     1.0
@@ -277,7 +279,7 @@ pub fn add_traction() -> TractionState {
                 // Additional sounds --------------------------------------------
 
                 if speed == 0.0 && prev_speed != 0.0 {
-                    true.set("Snd_Halteruck");
+                    set_var("Snd_Halteruck", &true);
                 }
 
                 prev_speed = speed;

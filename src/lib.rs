@@ -7,7 +7,8 @@ use lotus_script::{
     message::{send_message, Coupling, MessageMeta, MessageTarget},
     prelude::MessageType,
     script,
-    var::VariableType,
+    var::{get_var, set_var},
+    vehicle::{rail_quality, surface_type},
     Script,
 };
 use misc::add_misc;
@@ -56,8 +57,8 @@ impl Script for ScriptGt6n {
             doors: doors(),
         });
 
-        true.set("Coupling_A_vis");
-        true.set("Coupling_B_vis");
+        set_var("Coupling_A_vis", &true);
+        set_var("Coupling_B_vis", &true);
 
         //-----------------------------------------
 
@@ -182,24 +183,36 @@ impl Script for ScriptGt6n {
 
         // self.timer += delta();
 
-        f32::get("M_Axle_N_0_1").abs().set("Snd_Traction_A");
-        f32::get("M_Axle_N_1_1").abs().set("Snd_Traction_C");
-        f32::get("M_Axle_N_2_0").abs().set("Snd_Traction_B");
+        set_var("Snd_Traction_A", &get_var::<f32>("M_Axle_N_0_1").abs());
+        set_var("Snd_Traction_C", &get_var::<f32>("M_Axle_N_1_1").abs());
+        set_var("Snd_Traction_B", &get_var::<f32>("M_Axle_N_2_0").abs());
 
         // 1.0.set("Snd_Fiep_tief");
 
-        100000000.0.set("loadforce_Axle_N_1_1");
+        set_var("loadforce_Axle_N_1_1", &100000000.0);
 
-        f32::get("v_Axle_mps_0_0").abs().set("v_Axle_mps_0_0_abs");
-        f32::get("v_Axle_mps_0_1").abs().set("v_Axle_mps_0_1_abs");
-        f32::get("v_Axle_mps_2_0").abs().set("v_Axle_mps_2_0_abs");
-        f32::get("v_Axle_mps_2_1").abs().set("v_Axle_mps_2_1_abs");
+        set_var(
+            "v_Axle_mps_0_0_abs",
+            &get_var::<f32>("v_Axle_mps_0_0").abs(),
+        );
+        set_var(
+            "v_Axle_mps_0_1_abs",
+            &get_var::<f32>("v_Axle_mps_0_1").abs(),
+        );
+        set_var(
+            "v_Axle_mps_2_0_abs",
+            &get_var::<f32>("v_Axle_mps_2_0").abs(),
+        );
+        set_var(
+            "v_Axle_mps_2_1_abs",
+            &get_var::<f32>("v_Axle_mps_2_1").abs(),
+        );
 
         weichensounds();
 
-        if f32::get("A_CP_SW_Wischer") > 0.5 {
+        if get_var::<f32>("A_CP_SW_Wischer") > 0.5 {
             send_message(
-                if f32::get("A_CP_SW_Wischer") > 1.5 {
+                if get_var::<f32>("A_CP_SW_Wischer") > 1.5 {
                     &BlinkerState::On
                 } else {
                     &BlinkerState::Off
@@ -210,16 +223,24 @@ impl Script for ScriptGt6n {
                 }],
             )
         };
+
+        if let Some(rq) = rail_quality(0, 0) {
+            set_var("aaa rq", &(rq as u8));
+        }
+
+        if let Some(st) = surface_type(0, 0) {
+            set_var("aaa st", &(st as u8));
+        }
     }
 
     fn on_message(&mut self, msg: lotus_script::message::Message) {
         msg.handle(|m: BlinkerState| {
             match m {
                 BlinkerState::Off => {
-                    0.0.set("BlinkerRight");
+                    set_var("BlinkerRight", &0.0);
                 }
                 BlinkerState::On => {
-                    1.0.set("BlinkerRight");
+                    set_var("BlinkerRight", &1.0);
                 }
             };
             Ok(())
@@ -229,15 +250,15 @@ impl Script for ScriptGt6n {
 }
 
 fn weichensounds() {
-    let v = f32::get("v_Axle_mps_0_0");
-    let quality_a = i32::get("railquality_0_0");
-    let quality_b = i32::get("railquality_0_1");
+    let v = get_var::<f32>("v_Axle_mps_0_0");
+    let quality_a = get_var::<i32>("railquality_0_0");
+    let quality_b = get_var::<i32>("railquality_0_1");
 
     if (2..=4).contains(&quality_a) || (2..=4).contains(&quality_b) {
-        1.0.set("Snd_Rumpeln_Weiche1");
+        set_var("Snd_Rumpeln_Weiche1", &1.0);
     } else {
-        0.0.set("Snd_Rumpeln_Weiche1");
+        set_var("Snd_Rumpeln_Weiche1", &0.0);
     }
 
-    (0.9 + v.abs() / 18.0).set("Snd_Rumpeln_Pitch");
+    set_var("Snd_Rumpeln_Pitch", &(0.9 + v.abs() / 18.0));
 }
