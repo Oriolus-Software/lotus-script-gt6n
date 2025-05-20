@@ -3,7 +3,7 @@ use lotus_rt_extra::{
     doors::DoorControlMode,
     shared::{multiple_on_change, Shared},
 };
-use lotus_script::{log, var::set_var};
+use lotus_script::var::set_var;
 
 use crate::{
     cockpit::CockpitState,
@@ -231,8 +231,6 @@ fn outside_lights(state: &Interface) {
             let switch_abblend = (switch_aussen == OutsideLightSwitch::Abblend)
                 || (switch_aussen == OutsideLightSwitch::Fern);
             let switch_fern = switch_aussen == OutsideLightSwitch::Fern;
-
-            log::info!("switch_abblend: {}", switch_abblend);
 
             standlicht.set(switch_standlicht);
             ruecklicht.set(switch_standlicht);

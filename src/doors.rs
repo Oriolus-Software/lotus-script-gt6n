@@ -1,5 +1,3 @@
-use lotus_script::log;
-
 use lotus_rt_extra::{
     combined::{
         blink_relais_multiple_entries, BlinkRelaisMultipleEntriesProperties,
@@ -43,8 +41,6 @@ pub struct DoorsWithController {
 }
 
 pub fn doors() -> DoorsState {
-    log::info!("Adding doors ------------------------------");
-
     let system_active = Shared::new(true);
 
     let released = Shared::new(false);

@@ -3,12 +3,13 @@ use doors::doors;
 use lights::add_lights;
 use lotus_script::{
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
+    log,
     math::UVec2,
     message::{send_message, Coupling, MessageMeta, MessageTarget},
     prelude::MessageType,
     script,
     var::{get_var, set_var},
-    vehicle::{rail_quality, surface_type},
+    vehicle::{railquality, RailQuality},
     Script,
 };
 use misc::add_misc;
@@ -48,6 +49,8 @@ impl MessageType for BlinkerState {
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
+        log::info!("init -----------------------------");
+
         systems_interface(SystemStates {
             cockpit: add_cockpit(),
             passenger: passenger_elements(),
@@ -223,14 +226,6 @@ impl Script for ScriptGt6n {
                 }],
             )
         };
-
-        if let Some(rq) = rail_quality(0, 0) {
-            set_var("aaa rq", &(rq as u8));
-        }
-
-        if let Some(st) = surface_type(0, 0) {
-            set_var("aaa st", &(st as u8));
-        }
     }
 
     fn on_message(&mut self, msg: lotus_script::message::Message) {
@@ -250,15 +245,20 @@ impl Script for ScriptGt6n {
 }
 
 fn weichensounds() {
-    let v = get_var::<f32>("v_Axle_mps_0_0");
-    let quality_a = get_var::<i32>("railquality_0_0");
-    let quality_b = get_var::<i32>("railquality_0_1");
-
-    if (2..=4).contains(&quality_a) || (2..=4).contains(&quality_b) {
-        set_var("Snd_Rumpeln_Weiche1", &1.0);
-    } else {
-        set_var("Snd_Rumpeln_Weiche1", &0.0);
+    if let (Some(quality_a), Some(quality_b)) = (railquality(0, 0), railquality(0, 1)) {
+        if quality_a == RailQuality::FroggySmooth
+            || quality_b == RailQuality::FroggySmooth
+            || quality_a == RailQuality::FroggyRough
+            || quality_b == RailQuality::FroggyRough
+            || quality_a == RailQuality::FlatGroove
+            || quality_b == RailQuality::FlatGroove
+        {
+            set_var("Snd_Rumpeln_Weiche1", &1.0);
+        } else {
+            set_var("Snd_Rumpeln_Weiche1", &0.0);
+        }
     }
 
+    let v = get_var::<f32>("v_Axle_mps_0_0");
     set_var("Snd_Rumpeln_Pitch", &(0.9 + v.abs() / 18.0));
 }
