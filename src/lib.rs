@@ -9,7 +9,7 @@ use lotus_script::{
     prelude::MessageType,
     script,
     var::{get_var, set_var},
-    vehicle::{railquality, RailQuality},
+    vehicle::RailQuality,
     Script,
 };
 use misc::add_misc;
@@ -245,7 +245,7 @@ impl Script for ScriptGt6n {
 }
 
 fn weichensounds() {
-    if let (Some(quality_a), Some(quality_b)) = (railquality(0, 0), railquality(0, 1)) {
+    if let (Ok(quality_a), Ok(quality_b)) = (RailQuality::get(0, 0), RailQuality::get(0, 1)) {
         if quality_a == RailQuality::FroggySmooth
             || quality_b == RailQuality::FroggySmooth
             || quality_a == RailQuality::FroggyRough
