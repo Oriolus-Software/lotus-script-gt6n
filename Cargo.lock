@@ -172,7 +172,7 @@ dependencies = [
 [[package]]
 name = "lotus-rt"
 version = "0.1.0"
-source = "git+https://github.com/Oriolus-Software/lotus-rt#ebeca8b53faec592be018958496de217ac52e670"
+source = "git+https://github.com/Oriolus-Software/lotus-rt#c928bfe22d91a675beb10942c6a47a7700ad24b8"
 dependencies = [
  "lotus-script",
  "thiserror",
@@ -186,6 +186,7 @@ dependencies = [
  "bon",
  "lotus-rt",
  "lotus-script",
+ "serde",
 ]
 
 [[package]]
@@ -327,9 +328,9 @@ checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
 
 [[package]]
 name = "rustversion"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
+checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
 
 [[package]]
 name = "ryu"

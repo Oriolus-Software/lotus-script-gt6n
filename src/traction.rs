@@ -2,13 +2,13 @@ use lotus_rt::{spawn, wait};
 
 use lotus_rt_extra::{
     brake::{
-        brake_combination, BrakeCombinationElement, BrakeCombinationProperties,
-        RailBrakeProperties, SandingUnitProperties,
+        BrakeCombinationElement, BrakeCombinationProperties, RailBrakeProperties,
+        SandingUnitProperties, brake_combination,
     },
     shared::Shared,
     traction::{
-        three_phase_traction_unit, ThreePhaseTractionUnitProperties, ThreePhaseTractionUnitState,
-        TractionUnitMode,
+        ThreePhaseTractionUnitProperties, ThreePhaseTractionUnitState, TractionUnitMode,
+        three_phase_traction_unit,
     },
 };
 use lotus_script::var::{get_var, set_var};
@@ -255,11 +255,11 @@ pub fn add_traction() -> TractionState {
 
                 set_var(
                     "Snd_BrakeFlirr",
-                    &(if mode == TractionUnitMode::Brake {
+                    if mode == TractionUnitMode::Brake {
                         traction_units[0].traction_unit.wheel_force.get().abs() / MAXBRAKEFORCE_N
                     } else {
                         0.0
-                    }),
+                    },
                 );
 
                 let mut pneu_target = if (mode_fixed && !federspeicher_active) || max_brake {
@@ -279,7 +279,7 @@ pub fn add_traction() -> TractionState {
                 // Additional sounds --------------------------------------------
 
                 if speed == 0.0 && prev_speed != 0.0 {
-                    set_var("Snd_Halteruck", &true);
+                    set_var("Snd_Halteruck", true);
                 }
 
                 prev_speed = speed;

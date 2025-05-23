@@ -36,7 +36,7 @@ pub fn add_lights() -> LightState {
     spawn(async move {
         loop {
             fn set_light(c: &LightState, b: &Shared<bool>, variable: &str) {
-                set_var(variable, &c.voltage.switch(b.get()));
+                set_var(variable, c.voltage.switch(b.get()));
             }
 
             fn running_blinker(c: &LightState, s: &mut BlinkgeberState) {
@@ -52,9 +52,9 @@ pub fn add_lights() -> LightState {
 
                 if s.update(delta()) {
                     if s.on {
-                        set_var("Snd_Relais_Blinker_On", &true);
+                        set_var("Snd_Relais_Blinker_On", true);
                     } else {
-                        set_var("Snd_Relais_Blinker_Off", &true);
+                        set_var("Snd_Relais_Blinker_Off", true);
                     }
                 }
             }

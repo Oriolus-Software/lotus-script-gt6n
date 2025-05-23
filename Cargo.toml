@@ -1,18 +1,19 @@
 [package]
 name = "gt6n"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]
 
-[patch.crates-io]
+[patch.'https://github.com/Oriolus-Software/LOTUS-Scripting']
 lotus-script = { path = "../../script-rs/lotus-script" }
 lotus-script-sys = { path = "../../script-rs/lotus-script-sys" }
 lotus-shared = { path = "../../script-rs/lotus-shared" }
+lotus-bindgen-macros = { path = "../../script-rs/lotus-bindgen-macros" }
 
 [dependencies]
-lotus-script = { path = "../../script-rs/lotus-script" }
+lotus-script = { git = "https://github.com/Oriolus-Software/LOTUS-Scripting.git" }
 # lotus-extra = { path = "../../lotus-extra" }
 lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-features = false, features = [
     "lotus",

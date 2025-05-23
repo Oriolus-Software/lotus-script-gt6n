@@ -2,19 +2,21 @@ use cockpit::add_cockpit;
 use doors::doors;
 use lights::add_lights;
 use lotus_script::{
+    Script,
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
     log,
     math::UVec2,
-    message::{send_message, Coupling, MessageMeta, MessageTarget},
+    message::{Coupling, MessageMeta, MessageTarget, send_message},
     prelude::MessageType,
     script,
+    time::ticks_alive,
     var::{get_var, set_var},
     vehicle::RailQuality,
-    Script,
 };
 use misc::add_misc;
 use passenger_elements::passenger_elements;
-use systems_interface::{systems_interface, SystemStates};
+use serde::{Deserialize, Serialize};
+use systems_interface::{SystemStates, systems_interface};
 use traction::add_traction;
 
 pub mod cockpit;
@@ -36,7 +38,7 @@ pub struct ScriptGt6n {
     // source_test_tex: Option<Texture>,
 }
 
-#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 enum BlinkerState {
     #[default]
     Off,
@@ -60,8 +62,8 @@ impl Script for ScriptGt6n {
             doors: doors(),
         });
 
-        set_var("Coupling_A_vis", &true);
-        set_var("Coupling_B_vis", &true);
+        set_var("Coupling_A_vis", true);
+        set_var("Coupling_B_vis", true);
 
         //-----------------------------------------
 
@@ -179,6 +181,8 @@ impl Script for ScriptGt6n {
 
         // process_inputs();
 
+        log::info!("tick {}", ticks_alive());
+
         lotus_rt::tick();
 
         // self.traction
@@ -186,62 +190,50 @@ impl Script for ScriptGt6n {
 
         // self.timer += delta();
 
-        set_var("Snd_Traction_A", &get_var::<f32>("M_Axle_N_0_1").abs());
-        set_var("Snd_Traction_C", &get_var::<f32>("M_Axle_N_1_1").abs());
-        set_var("Snd_Traction_B", &get_var::<f32>("M_Axle_N_2_0").abs());
+        set_var("Snd_Traction_A", get_var::<f32>("M_Axle_N_0_1").abs());
+        set_var("Snd_Traction_C", get_var::<f32>("M_Axle_N_1_1").abs());
+        set_var("Snd_Traction_B", get_var::<f32>("M_Axle_N_2_0").abs());
 
         // 1.0.set("Snd_Fiep_tief");
 
-        set_var("loadforce_Axle_N_1_1", &100000000.0);
+        set_var("loadforce_Axle_N_1_1", 100000000.0);
 
-        set_var(
-            "v_Axle_mps_0_0_abs",
-            &get_var::<f32>("v_Axle_mps_0_0").abs(),
-        );
-        set_var(
-            "v_Axle_mps_0_1_abs",
-            &get_var::<f32>("v_Axle_mps_0_1").abs(),
-        );
-        set_var(
-            "v_Axle_mps_2_0_abs",
-            &get_var::<f32>("v_Axle_mps_2_0").abs(),
-        );
-        set_var(
-            "v_Axle_mps_2_1_abs",
-            &get_var::<f32>("v_Axle_mps_2_1").abs(),
-        );
+        set_var("v_Axle_mps_0_0_abs", get_var::<f32>("v_Axle_mps_0_0").abs());
+        set_var("v_Axle_mps_0_1_abs", get_var::<f32>("v_Axle_mps_0_1").abs());
+        set_var("v_Axle_mps_2_0_abs", get_var::<f32>("v_Axle_mps_2_0").abs());
+        set_var("v_Axle_mps_2_1_abs", get_var::<f32>("v_Axle_mps_2_1").abs());
 
         weichensounds();
 
-        if get_var::<f32>("A_CP_SW_Wischer") > 0.5 {
-            send_message(
-                if get_var::<f32>("A_CP_SW_Wischer") > 1.5 {
-                    &BlinkerState::On
-                } else {
-                    &BlinkerState::Off
-                },
-                [MessageTarget::AcrossCoupling {
-                    coupling: Coupling::Rear,
-                    cascade: true,
-                }],
-            )
-        };
+        // if get_var::<f32>("A_CP_SW_Wischer") > 0.5 {
+        //     send_message(
+        //         if get_var::<f32>("A_CP_SW_Wischer") > 1.5 {
+        //             &BlinkerState::On
+        //         } else {
+        //             &BlinkerState::Off
+        //         },
+        //         [MessageTarget::Broadcast {
+        //             across_couplings: false,
+        //             include_self: true,
+        //         }],
+        //     )
+        // };
     }
 
-    fn on_message(&mut self, msg: lotus_script::message::Message) {
-        msg.handle(|m: BlinkerState| {
-            match m {
-                BlinkerState::Off => {
-                    set_var("BlinkerRight", &0.0);
-                }
-                BlinkerState::On => {
-                    set_var("BlinkerRight", &1.0);
-                }
-            };
-            Ok(())
-        })
-        .ok();
-    }
+    // fn on_message(&mut self, msg: lotus_script::message::Message) {
+    //     msg.handle(|m: BlinkerState| {
+    //         match m {
+    //             BlinkerState::Off => {
+    //                 set_var("BlinkerRight", &0.0);
+    //             }
+    //             BlinkerState::On => {
+    //                 set_var("BlinkerRight", &1.0);
+    //             }
+    //         };
+    //         Ok(())
+    //     })
+    //     .ok();
+    // }
 }
 
 fn weichensounds() {
@@ -253,12 +245,12 @@ fn weichensounds() {
             || quality_a == RailQuality::FlatGroove
             || quality_b == RailQuality::FlatGroove
         {
-            set_var("Snd_Rumpeln_Weiche1", &1.0);
+            set_var("Snd_Rumpeln_Weiche1", 1.0);
         } else {
-            set_var("Snd_Rumpeln_Weiche1", &0.0);
+            set_var("Snd_Rumpeln_Weiche1", 0.0);
         }
     }
 
     let v = get_var::<f32>("v_Axle_mps_0_0");
-    set_var("Snd_Rumpeln_Pitch", &(0.9 + v.abs() / 18.0));
+    set_var("Snd_Rumpeln_Pitch", 0.9 + v.abs() / 18.0);
 }

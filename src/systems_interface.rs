@@ -1,7 +1,7 @@
 use lotus_rt::{spawn, wait};
 use lotus_rt_extra::{
     doors::DoorControlMode,
-    shared::{multiple_on_change, Shared},
+    shared::{Shared, multiple_on_change},
 };
 use lotus_script::var::set_var;
 
@@ -201,8 +201,8 @@ fn traction_control(state: &Interface) {
         },
     );
 
-    set_var("v_Axle_mps_0_1_abs", &2.3);
-    set_var("abs", &true);
+    set_var("v_Axle_mps_0_1_abs", 2.3);
+    set_var("abs", true);
 }
 
 fn outside_lights(state: &Interface) {
@@ -352,7 +352,7 @@ async fn door_control(
             (released, all_request, switch_door_1)
         };
 
-        set_var("Door_BtnLgt_Frei", &released);
+        set_var("Door_BtnLgt_Frei", released);
 
         for (i, (button, request)) in passenger
             .door_buttons
@@ -363,7 +363,7 @@ async fn door_control(
             let button_pressed = button.get();
             set_var(
                 format!("Door_{}_BtnLgt_Pressed", i + 1).as_str(),
-                &button_pressed,
+                button_pressed,
             );
             request.set_only_on_change(states.1 || (button_pressed && released));
         }
