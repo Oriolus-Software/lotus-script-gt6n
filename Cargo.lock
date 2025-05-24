@@ -172,7 +172,7 @@ dependencies = [
 [[package]]
 name = "lotus-rt"
 version = "0.1.0"
-source = "git+https://github.com/Oriolus-Software/lotus-rt#c928bfe22d91a675beb10942c6a47a7700ad24b8"
+source = "git+https://github.com/Oriolus-Software/lotus-rt#08b48fd0cab040c2879bc896ba35cd0af3435c2b"
 dependencies = [
  "lotus-script",
  "thiserror",
