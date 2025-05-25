@@ -11,7 +11,11 @@ use lotus_rt_extra::{
         three_phase_traction_unit,
     },
 };
-use lotus_script::var::{get_var, set_var};
+use lotus_script::{
+    log,
+    var::{get_var, set_var},
+    vehicle::Axle,
+};
 
 const VMAX: f32 = 60.0 / 3.6;
 const VMAX_BACK: f32 = 15.0 / 3.6;
@@ -55,8 +59,8 @@ pub fn add_traction() -> TractionState {
     let traction_mode = Shared::new(TractionUnitMode::Off);
     let target_force = Shared::new(0.0);
 
-    let traction_unit = |bogie: usize, axle: usize, vehicle_part: String| -> TractionUnit {
-        let wheelspeed = Shared::<f32>::var_reader(format!("v_Axle_mps_{bogie}_{axle}"));
+    let traction_unit = |axle: Axle, vehicle_part: String| -> TractionUnit {
+        let wheelspeed = Shared::<f32>::var_reader(axle.velocity_var_name());
 
         let mg_relay = Shared::new(false);
 
@@ -88,15 +92,16 @@ pub fn add_traction() -> TractionState {
                     .min_voltage(0.8)
                     .sound_pitch_base(0.8)
                     .sound_pitch_per_mps(0.05)
-                    .bogie_index(bogie)
+                    .bogie(axle.bogie())
                     .variable_sound_volume(format!("Snd_Mg_{vehicle_part}_Friction_vol"))
                     .variable_sound_control(format!("Snd_Mg_{vehicle_part}"))
                     .variable_sound_pitch("Snd_Mg_Friction_pitch")
                     .build(),
             );
-        traction_unit
-            .wheel_force
-            .var_writer(format!("M_Axle_N_{bogie}_{axle}"));
+        traction_unit.wheel_force.finally_do(move |force| {
+            axle.traction_force_newton(*force);
+        });
+
         traction_unit
             .wheel_force
             .var_writer(format!("Snd_Traction_{vehicle_part}"));
@@ -107,10 +112,41 @@ pub fn add_traction() -> TractionState {
         }
     };
 
+    let create_axle = |bogie_index: usize, axle_index: usize| -> Option<Axle> {
+        match Axle::get(bogie_index, axle_index) {
+            Ok(axle) => Some(axle),
+            Err(e) => {
+                log::error!(
+                    "Axle not found: bogie_index: {}, axle_index: {}, error: {}",
+                    bogie_index,
+                    axle_index,
+                    e
+                );
+                None
+            }
+        }
+    };
+
+    let axles_opts = [create_axle(0, 1), create_axle(1, 1), create_axle(2, 0)];
+
+    let Some(axle_1) = axles_opts[0] else {
+        return state;
+    };
+
+    let Some(axle_2) = axles_opts[1] else {
+        return state;
+    };
+
+    let Some(axle_3) = axles_opts[2] else {
+        return state;
+    };
+
+    let axles = [axle_1, axle_2, axle_3];
+
     let traction_units = [
-        traction_unit(0, 1, "A".into()),
-        traction_unit(1, 1, "C".into()),
-        traction_unit(2, 0, "B".into()),
+        traction_unit(axles[0], "A".into()),
+        traction_unit(axles[1], "C".into()),
+        traction_unit(axles[2], "B".into()),
     ];
 
     state.sanding.sanding_unit(
@@ -142,10 +178,10 @@ pub fn add_traction() -> TractionState {
     let hydraulic_brake_target = Shared::new(0.0);
     let parking_brake_target = Shared::new(0.0);
 
-    let add_brake_unit = |bogie: usize, axle: usize| {
+    let add_brake_unit = |axle: Axle| {
         brake_combination(
             BrakeCombinationProperties::builder()
-                .variable(format!("MBrake_Axle_N_{bogie}_{axle}"))
+                .axle(axle)
                 .elements(vec![
                     BrakeCombinationElement::builder()
                         .reference_force(16_000.0)
@@ -162,9 +198,9 @@ pub fn add_traction() -> TractionState {
         );
     };
 
-    add_brake_unit(0, 1);
-    add_brake_unit(1, 1);
-    add_brake_unit(2, 0);
+    add_brake_unit(axles[0]);
+    add_brake_unit(axles[1]);
+    add_brake_unit(axles[2]);
 
     {
         let speed_shared = state.speed.clone();

@@ -11,7 +11,7 @@ use lotus_script::{
     script,
     time::ticks_alive,
     var::{get_var, set_var},
-    vehicle::RailQuality,
+    vehicle::{Axle, RailQuality},
 };
 use misc::add_misc;
 use passenger_elements::passenger_elements;
@@ -181,8 +181,6 @@ impl Script for ScriptGt6n {
 
         // process_inputs();
 
-        log::info!("tick {}", ticks_alive());
-
         lotus_rt::tick();
 
         // self.traction
@@ -190,9 +188,9 @@ impl Script for ScriptGt6n {
 
         // self.timer += delta();
 
-        set_var("Snd_Traction_A", get_var::<f32>("M_Axle_N_0_1").abs());
-        set_var("Snd_Traction_C", get_var::<f32>("M_Axle_N_1_1").abs());
-        set_var("Snd_Traction_B", get_var::<f32>("M_Axle_N_2_0").abs());
+        // set_var("Snd_Traction_A", get_var::<f32>("M_Axle_N_0_1").abs());
+        // set_var("Snd_Traction_C", get_var::<f32>("M_Axle_N_1_1").abs());
+        // set_var("Snd_Traction_B", get_var::<f32>("M_Axle_N_2_0").abs());
 
         // 1.0.set("Snd_Fiep_tief");
 
@@ -237,18 +235,20 @@ impl Script for ScriptGt6n {
 }
 
 fn weichensounds() {
-    if let (Ok(quality_a), Ok(quality_b)) = (RailQuality::get(0, 0), RailQuality::get(0, 1)) {
-        if quality_a == RailQuality::FroggySmooth
-            || quality_b == RailQuality::FroggySmooth
-            || quality_a == RailQuality::FroggyRough
-            || quality_b == RailQuality::FroggyRough
-            || quality_a == RailQuality::FlatGroove
-            || quality_b == RailQuality::FlatGroove
-        {
-            set_var("Snd_Rumpeln_Weiche1", 1.0);
-        } else {
-            set_var("Snd_Rumpeln_Weiche1", 0.0);
-        }
+    let (quality_a, quality_b) = (
+        Axle::get(0, 0).unwrap().rail_quality(),
+        Axle::get(0, 1).unwrap().rail_quality(),
+    );
+    if quality_a == RailQuality::FroggySmooth
+        || quality_b == RailQuality::FroggySmooth
+        || quality_a == RailQuality::FroggyRough
+        || quality_b == RailQuality::FroggyRough
+        || quality_a == RailQuality::FlatGroove
+        || quality_b == RailQuality::FlatGroove
+    {
+        set_var("Snd_Rumpeln_Weiche1", 1.0);
+    } else {
+        set_var("Snd_Rumpeln_Weiche1", 0.0);
     }
 
     let v = get_var::<f32>("v_Axle_mps_0_0");
