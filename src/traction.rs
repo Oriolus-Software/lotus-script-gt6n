@@ -99,7 +99,7 @@ pub fn add_traction() -> TractionState {
                     .build(),
             );
         traction_unit.wheel_force.finally_do(move |force| {
-            axle.traction_force_newton(*force);
+            axle.set_traction_force_newton(*force);
         });
 
         traction_unit

@@ -1,4 +1,4 @@
-use lotus_rt_extra::{shared::Shared, simple::StartLoopStopSoundProperties};
+use lotus_rt_extra::{shared::Shared, sounds::StartLoopStopSoundProperties};
 
 #[derive(Default, Debug, Clone)]
 pub struct MiscState {

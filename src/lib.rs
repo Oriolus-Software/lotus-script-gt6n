@@ -1,23 +1,19 @@
-use cockpit::add_cockpit;
-use doors::doors;
-use lights::add_lights;
+use lotus_extra::messages::std_messages::MsgVehNumber;
+use lotus_rt_extra::{messages::process_message_rt_handler, shared::Shared};
 use lotus_script::{
     Script,
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
     log,
     math::UVec2,
-    message::{Coupling, MessageMeta, MessageTarget, send_message},
+    message::MessageMeta,
     prelude::MessageType,
     script,
-    time::ticks_alive,
     var::{get_var, set_var},
-    vehicle::{Axle, RailQuality},
+    vehicle::{Axle, Bogie, RailQuality, acceleration_vs_ground, velocity_vs_ground},
 };
-use misc::add_misc;
-use passenger_elements::passenger_elements;
 use serde::{Deserialize, Serialize};
-use systems_interface::{SystemStates, systems_interface};
-use traction::add_traction;
+
+use crate::systems_interface::Interface;
 
 pub mod cockpit;
 pub mod cockpit_types;
@@ -32,38 +28,75 @@ pub mod traction;
 
 script!(ScriptGt6n);
 
-#[derive(Default)]
 pub struct ScriptGt6n {
     test_tex: Option<Texture>,
+    interface: Interface,
     // source_test_tex: Option<Texture>,
+    test_message_shared: Shared<MsgVehNumber>,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
-enum BlinkerState {
-    #[default]
-    Off,
-    On,
-}
-
-impl MessageType for BlinkerState {
-    const MESSAGE_META: MessageMeta = MessageMeta::new("mc", "blinker", None);
+impl Default for ScriptGt6n {
+    fn default() -> Self {
+        Self {
+            test_tex: None,
+            interface: Interface::default(),
+            test_message_shared: Shared::new(MsgVehNumber {
+                value: "".to_string(),
+            }),
+        }
+    }
 }
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
         log::info!("init -----------------------------");
 
-        systems_interface(SystemStates {
-            cockpit: add_cockpit(),
-            passenger: passenger_elements(),
-            traction: add_traction(),
-            lights: add_lights(),
-            misc: add_misc(),
-            doors: doors(),
-        });
+        if acceleration_vs_ground().is_nan() {
+            log::info!("acceleration is nan");
+        }
+        if velocity_vs_ground().is_nan() {
+            log::info!("velocity is nan");
+        }
 
-        set_var("Coupling_A_vis", true);
-        set_var("Coupling_B_vis", true);
+        if Bogie::get(0).is_err() {
+            log::info!("bogie a is error");
+        }
+        if Bogie::get(1).is_err() {
+            log::info!("bogie b is error");
+        }
+        if Bogie::get(2).is_err() {
+            log::info!("bogie c is error");
+        }
+        if Bogie::get(3).is_err() {
+            log::info!("bogie d is error");
+        }
+
+        if Axle::get(0, 0).is_err() {
+            log::info!("axle 0-0 is error");
+        }
+        if Axle::get(0, 1).is_err() {
+            log::info!("axle 0-1 is error");
+        }
+        if Axle::get(1, 0).is_err() {
+            log::info!("axle 1-0 is error");
+        }
+        if Axle::get(1, 1).is_err() {
+            log::info!("axle 1-1 is error");
+        }
+        if Axle::get(2, 0).is_err() {
+            log::info!("axle 2-0 is error");
+        }
+        if Axle::get(2, 1).is_err() {
+            log::info!("axle 2-1 is error");
+        }
+        if Axle::get(3, 0).is_err() {
+            log::info!("axle 3-0 is error");
+        }
+        if Axle::get(3, 1).is_err() {
+            log::info!("axle 3-1 is error");
+        }
+
+        self.interface = Interface::default();
 
         //-----------------------------------------
 
@@ -218,20 +251,22 @@ impl Script for ScriptGt6n {
         // };
     }
 
-    // fn on_message(&mut self, msg: lotus_script::message::Message) {
-    //     msg.handle(|m: BlinkerState| {
-    //         match m {
-    //             BlinkerState::Off => {
-    //                 set_var("BlinkerRight", &0.0);
-    //             }
-    //             BlinkerState::On => {
-    //                 set_var("BlinkerRight", &1.0);
-    //             }
-    //         };
-    //         Ok(())
-    //     })
-    //     .ok();
-    // }
+    fn on_message(&mut self, msg: lotus_script::message::Message) {
+        // msg.handle(|m: BlinkerState| {
+        //     match m {
+        //         BlinkerState::Off => {
+        //             set_var("BlinkerRight", &0.0);
+        //         }
+        //         BlinkerState::On => {
+        //             set_var("BlinkerRight", &1.0);
+        //         }
+        //     };
+        //     Ok(())
+        // })
+        // .ok();
+        // msg.handle(|m| self.test_message_shared.message_handler(m));
+        process_message_rt_handler(msg);
+    }
 }
 
 fn weichensounds() {

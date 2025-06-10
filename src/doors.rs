@@ -1,16 +1,13 @@
 use lotus_rt_extra::{
-    combined::{
-        blink_relais_multiple_entries, BlinkRelaisMultipleEntriesProperties,
-        BlinkRelaisWithLightAndSoundProperties, LightAndSoundVarPair,
-    },
     doors::{
-        door_control, door_warning_outside_relay_with_stop_on_speed, DoorControlMode,
-        DoorControlProperties, DoorControlState, DoorWarningOutsideRelayWithStopOnSpeedProperties,
-        ElectricSlidingPlugDoorPairPositionState, ElectricSlidingPlugDoorPairProperties,
-        ElectricSlidingPlugDoorPairState, ElectricSlidingPlugDoorPairTarget,
+        DoorControlMode, DoorControlProperties, DoorControlState,
+        DoorWarningOutsideRelayWithStopOnSpeedProperties, ElectricSlidingPlugDoorPairPositionState,
+        ElectricSlidingPlugDoorPairProperties, ElectricSlidingPlugDoorPairState,
+        ElectricSlidingPlugDoorPairTarget, door_control,
+        door_warning_outside_relay_with_stop_on_speed,
     },
     shared::Shared,
-    simple::BlinkRelaisProperties,
+    timers::BlinkRelayProperties,
 };
 
 const PLUG_RADIUS: f32 = 0.06;
@@ -141,45 +138,40 @@ pub fn doors() -> DoorsState {
         .door_1_override
         .process(|&v| v == DoorControlMode::Automatic, true)
         .and(&state.doors_with_controller[0].control.warning)
-        .blink_relais_with_light_and_sound(BlinkRelaisWithLightAndSoundProperties {
-            blink_relais_properties: BlinkRelaisProperties {
-                interval: 0.777,
-                on_time: 0.388,
-                reset_time: None,
-            },
-            light_and_sound: LightAndSoundVarPair {
-                light: "Door_1_WarnlightI".to_string(),
-                sound: "Snd_Door_1_Warning".to_string(),
-            },
-        });
+        .blink_relay(
+            BlinkRelayProperties::builder()
+                .interval(0.777)
+                .on_time(0.388)
+                .build(),
+        )
+        .trigger_sound("Snd_Door_1_Warning")
+        .to_float()
+        .var_writer("Door_1_WarnlightI");
 
-    blink_relais_multiple_entries(BlinkRelaisMultipleEntriesProperties {
-        interval: 0.777,
-        on_time: 0.388,
-        reset_time: None,
-        entries: vec![
-            (
-                state.doors_with_controller[1].control.warning.clone(),
-                LightAndSoundVarPair {
-                    light: "Door_2_WarnlightI".to_string(),
-                    sound: "Snd_Door_2_Warning".to_string(),
-                },
-            ),
-            (
-                state.doors_with_controller[2].control.warning.clone(),
-                LightAndSoundVarPair {
-                    light: "Door_3_WarnlightI".to_string(),
-                    sound: "Snd_Door_3_Warning".to_string(),
-                },
-            ),
-            (
-                state.doors_with_controller[3].control.warning.clone(),
-                LightAndSoundVarPair {
-                    light: "Door_4_WarnlightI".to_string(),
-                    sound: "Snd_Door_4_Warning".to_string(),
-                },
-            ),
-        ],
+    let warnings_1_3: Vec<_> = state.doors_with_controller[1..]
+        .iter()
+        .map(|v| v.control.warning.clone())
+        .collect();
+
+    let outside_warning_relais =
+        Shared::<bool>::or_vec(warnings_1_3.iter().map(|v| v.clone()).collect())
+            .and(
+                &state
+                    .door_1_override
+                    .process(|&v| v == DoorControlMode::Automatic, true),
+            )
+            .blink_relay(
+                BlinkRelayProperties::builder()
+                    .interval(0.777)
+                    .on_time(0.388)
+                    .build(),
+            );
+
+    warnings_1_3.iter().enumerate().for_each(|(i, v)| {
+        v.and(&outside_warning_relais)
+            .trigger_sound(format!("Snd_Door_{}_Warning", i + 1))
+            .to_float()
+            .var_writer(format!("Door_{}_WarnlightI", i + 1));
     });
 
     let all_doors_closed = Shared::<bool>::and_vec(
@@ -202,12 +194,12 @@ pub fn doors() -> DoorsState {
 
     warning_outside_relay.var_writer("Snd_Relais_Doorwarn");
 
-    let outside_warning_blinker_relais =
-        warning_outside_relay.blink_relais(BlinkRelaisProperties {
-            interval: 0.393,
-            on_time: 0.196,
-            reset_time: None,
-        });
+    let outside_warning_blinker_relais = warning_outside_relay.blink_relay(
+        BlinkRelayProperties::builder()
+            .interval(0.393)
+            .on_time(0.196)
+            .build(),
+    );
 
     outside_warning_blinker_relais
         .to_float()

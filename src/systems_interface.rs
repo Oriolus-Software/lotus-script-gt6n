@@ -2,6 +2,7 @@ use lotus_rt::{spawn, wait};
 use lotus_rt_extra::{
     doors::DoorControlMode,
     shared::{Shared, multiple_on_change},
+    vehicle_systems::BlinkerState,
 };
 use lotus_script::var::set_var;
 
@@ -9,7 +10,7 @@ use crate::{
     cockpit::CockpitState,
     cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
     doors::DoorsState,
-    lights::{BlinkerState, LightState},
+    lights::LightState,
     misc::MiscState,
     passenger_elements::PassengerElementsState,
     traction::{TractionDirection, TractionState},
@@ -32,12 +33,30 @@ struct InterfaceState {
 }
 
 #[derive(Clone)]
-struct Interface {
+pub struct Interface {
     systems: SystemStates,
     interface: InterfaceState,
 }
 
-pub fn systems_interface(channels: SystemStates) {
+impl Default for Interface {
+    fn default() -> Self {
+        let sys = systems_interface(SystemStates {
+            cockpit: crate::cockpit::add_cockpit(),
+            passenger: crate::passenger_elements::passenger_elements(),
+            traction: crate::traction::add_traction(),
+            lights: crate::lights::add_lights(),
+            misc: crate::misc::add_misc(),
+            doors: crate::doors::doors(),
+        });
+
+        set_var("Coupling_A_vis", true);
+        set_var("Coupling_B_vis", true);
+
+        sys
+    }
+}
+
+pub fn systems_interface(channels: SystemStates) -> Interface {
     let channels_clone = channels.clone();
     let state = Interface {
         systems: channels,
@@ -115,6 +134,8 @@ pub fn systems_interface(channels: SystemStates) {
         .interface
         .cockpit_a_drive
         .loop_sound("Snd_Cabin_IdleVR".to_string());
+
+    state
 }
 
 async fn federspeicher(cockpit: CockpitState, traction: TractionState, interface: InterfaceState) {
@@ -263,15 +284,15 @@ fn blinker_lights(state: &Interface) {
         ],
         move || {
             blinker_state.set(if switch_warnblinker.get().is_in() {
-                BlinkerState::Warn
+                BlinkerState::Warning
             } else if cockpit_a_active.clone().get() {
                 match switch_blinker.get() {
-                    BlinkerSwitch::Left => BlinkerState::Links,
-                    BlinkerSwitch::Right => BlinkerState::Rechts,
-                    _ => BlinkerState::Aus,
+                    BlinkerSwitch::Left => BlinkerState::Left,
+                    BlinkerSwitch::Right => BlinkerState::Right,
+                    _ => BlinkerState::Off,
                 }
             } else {
-                BlinkerState::Aus
+                BlinkerState::Off
             });
         },
     );
