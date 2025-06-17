@@ -1,8 +1,9 @@
 use lotus_rt_extra::{
     cockpit_simple::{
-        ButtonInOutState, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
-        ButtonTwoSidedSpringLoadedState, StepSwitchProperties, SwitchProperties, button_inout,
-        std_button, step_switch, switch, switch_twosided_springloaded,
+        ButtonInOutProperties, ButtonInOutState, ButtonProperties,
+        ButtonTwoSidedSpringLoadedProperties, ButtonTwoSidedSpringLoadedState,
+        StepSwitchProperties, SwitchProperties, button_inout, std_button, step_switch, switch,
+        switch_twosided_springloaded,
     },
     drive_control::{SollwertgeberProperties, sollwertgeber},
     shared::Shared,
@@ -64,6 +65,7 @@ pub fn add_cockpit() -> Cockpit {
             .input_event_on("Key_Reverser_L")
             .input_event_off("Key_Reverser_R")
             .animation_var("Schluessel_A_RW_turned")
+            .standard_position(true)
             .locked(schloss_lock.clone())
             .build(),
     );
@@ -77,6 +79,7 @@ pub fn add_cockpit() -> Cockpit {
             .position_max(RichtungswenderState::R)
             .locked(rw_lock.or(&schloss.invert()).clone())
             .sound("Snd_CP_A_Reverser")
+            .standard_position(RichtungswenderState::V)
             .build(),
         None::<fn() -> RichtungswenderState>,
         None::<fn() -> RichtungswenderState>,
@@ -165,7 +168,7 @@ pub fn add_cockpit() -> Cockpit {
         ),
 
         federspeicher_overwrite: button_inout(
-            ButtonProperties::builder()
+            ButtonInOutProperties::builder()
                 .input_event("FspDeactiveToggle")
                 .animation_var("A_CP_TS_Fsp")
                 .sound_on("Snd_CP_A_BtnDn")
@@ -198,7 +201,7 @@ pub fn add_cockpit() -> Cockpit {
             None::<fn() -> BlinkerSwitch>,
         ),
         warnblinker: button_inout(
-            ButtonProperties::builder()
+            ButtonInOutProperties::builder()
                 .input_event("IndicatorWarn")
                 .animation_var("A_CP_TS_Warnblinker")
                 .sound_on("Snd_CP_A_BtnDn")

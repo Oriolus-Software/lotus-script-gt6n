@@ -77,28 +77,31 @@ pub fn systems_interface(channels: SystemStates) -> Interface {
                 .cockpit
                 .richtungswender
                 .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
-            schluessel: token::<Schluessel>(TokenProperties {
-                slots: vec![
-                    TokenSlot::builder()
-                        .token(Schluessel::Vorne)
-                        .visibility_var("Schluessel_A_RW")
-                        .input_event_set("InsertKey_Reverser")
-                        .input_event_reset("Key_Reverser_R")
-                        .sound_set("Snd_CP_A_KeyIn")
-                        .sound_reset("Snd_CP_A_KeyOut")
-                        .build(),
-                    TokenSlot::builder()
-                        .token(Schluessel::Hinten)
-                        .visibility_var("Schluessel_H")
-                        .input_event_set("InsertKey_Reverser")
-                        .input_event_set_cockpit_index(1)
-                        .input_event_reset("Key_Reverser_R")
-                        .input_event_reset_cockpit_index(1)
-                        .sound_set("Snd_CP_B_KeyIn")
-                        .sound_reset("Snd_CP_B_KeyOut")
-                        .build(),
-                ],
-            }),
+            schluessel: token::<Schluessel>(
+                TokenProperties::builder()
+                    .standard_position(Schluessel::Vorne)
+                    .slots(vec![
+                        TokenSlot::builder()
+                            .token(Schluessel::Vorne)
+                            .visibility_var("Schluessel_A_RW")
+                            .input_event_set("InsertKey_Reverser")
+                            .input_event_reset("Key_Reverser_R")
+                            .sound_set("Snd_CP_A_KeyIn")
+                            .sound_reset("Snd_CP_A_KeyOut")
+                            .build(),
+                        TokenSlot::builder()
+                            .token(Schluessel::Hinten)
+                            .visibility_var("Schluessel_H")
+                            .input_event_set("InsertKey_Reverser")
+                            .input_event_set_cockpit_index(1)
+                            .input_event_reset("Key_Reverser_R")
+                            .input_event_reset_cockpit_index(1)
+                            .sound_set("Snd_CP_B_KeyIn")
+                            .sound_reset("Snd_CP_B_KeyOut")
+                            .build(),
+                    ])
+                    .build(),
+            ),
         },
     };
 
