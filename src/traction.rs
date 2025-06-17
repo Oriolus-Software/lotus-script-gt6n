@@ -149,7 +149,7 @@ pub fn add_traction() -> TractionState {
         traction_unit(axles[2], "B".into()),
     ];
 
-    state.sanding.sanding_unit(
+    state.sanding.proto_sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(0_usize)
             .axle_index(1_usize)
@@ -158,13 +158,13 @@ pub fn add_traction() -> TractionState {
             .sound_stop("Snd_Sanden_Stop")
             .build(),
     );
-    state.sanding.sanding_unit(
+    state.sanding.proto_sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(1_usize)
             .axle_index(1_usize)
             .build(),
     );
-    state.sanding.sanding_unit(
+    state.sanding.proto_sanding_unit(
         SandingUnitProperties::builder()
             .bogie_index(2_usize)
             .axle_index(0_usize)

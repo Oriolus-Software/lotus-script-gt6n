@@ -1,19 +1,14 @@
-use std::f32::NAN;
-
-use lotus_extra::messages::std_messages::{MsgLight, MsgVehNumber};
-use lotus_rt_extra::{messages::process_message_rt_handler, shared::Shared};
+use lotus_rt_extra::messages::process_message_rt_handler;
 use lotus_script::{
     Script,
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
     log,
     math::UVec2,
-    message::{Coupling, MessageMeta},
-    prelude::MessageType,
+    message::Coupling,
     script,
     var::{get_var, set_var},
-    vehicle::{Axle, Bogie, RailQuality, acceleration_vs_ground, velocity_vs_ground},
+    vehicle::{Axle, RailQuality, acceleration_vs_ground},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::systems_interface::Interface;
 

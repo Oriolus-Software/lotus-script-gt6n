@@ -2,7 +2,7 @@ use lotus_rt_extra::{
     cockpit_simple::{
         ButtonInOutState, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
         ButtonTwoSidedSpringLoadedState, StepSwitchProperties, SwitchProperties, button_inout,
-        button_twosided_springloaded, std_button, step_switch, switch,
+        std_button, step_switch, switch, switch_twosided_springloaded,
     },
     drive_control::{SollwertgeberProperties, sollwertgeber},
     shared::Shared,
@@ -61,8 +61,8 @@ pub fn add_cockpit() -> Cockpit {
 
     let schloss = switch(
         SwitchProperties::builder()
-            .switch_event_on("Key_Reverser_L")
-            .switch_event_off("Key_Reverser_R")
+            .input_event_on("Key_Reverser_L")
+            .input_event_off("Key_Reverser_R")
             .animation_var("Schluessel_A_RW_turned")
             .locked(schloss_lock.clone())
             .build(),
@@ -145,7 +145,7 @@ pub fn add_cockpit() -> Cockpit {
         sifa: gt6n_button("HoldToRun_Btn", "A_CP_TS_SiFa"),
         lightcheck: gt6n_button("Lightcheck", "A_CP_TS_Lampentest"),
 
-        pantograph: button_twosided_springloaded(
+        pantograph: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("PantographDn")
                 .input_event_plus("PantographUp")
@@ -154,7 +154,7 @@ pub fn add_cockpit() -> Cockpit {
                 .sound_off("Snd_CP_A_RotBtnOff")
                 .build(),
         ),
-        hauptschalter: button_twosided_springloaded(
+        hauptschalter: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("HighVoltageMainSwitchOff")
                 .input_event_plus("HighVoltageMainSwitchOn")
@@ -208,7 +208,7 @@ pub fn add_cockpit() -> Cockpit {
 
         beleuchtung_fahrgastraum: switch(
             SwitchProperties::builder()
-                .toggle_event("CabinLightToggle")
+                .input_event_toggle("CabinLightToggle")
                 .animation_var("A_CP_SW_Innenbel")
                 .sound_switch("Snd_CP_A_Switch")
                 .build(),
@@ -252,7 +252,7 @@ pub fn add_cockpit() -> Cockpit {
             None::<fn() -> i8>,
             None::<fn() -> i8>,
         ),
-        sprechstelle: button_twosided_springloaded(
+        sprechstelle: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus("SprechstelleClear")
                 .input_event_plus("SprechstelleSpeak")
