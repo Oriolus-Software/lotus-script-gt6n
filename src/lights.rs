@@ -1,7 +1,9 @@
+use lotus_extra::messages::std_messages::MsgLight;
 use lotus_rt_extra::{
     shared::Shared, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
     vehicle_systems::BlinkerState,
 };
+use lotus_script::prelude::MessageTarget;
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;
@@ -36,25 +38,46 @@ pub fn add_lights() -> LightState {
             .cockpit_main
             .relay(&lights.voltage)
             .var_writer("A_CP_FstBelMain");
+
         lights
             .cockpit_begleiter
             .relay(&lights.voltage)
             .var_writer("A_CP_FstBelBegleiter");
+
         lights
             .instrumente
             .relay(&lights.voltage)
             .var_writer("A_CP_InstrBel");
+
         lights
             .fahrgastraum
             .relay(&lights.voltage)
             .var_writer("Fahrgastraumbeleuchtung");
-        lights.stand.relay(&lights.voltage).var_writer("Standlicht");
+
+        lights
+            .stand
+            .relay(&lights.voltage)
+            .var_writer("Standlicht")
+            .process(|&value| MsgLight { value })
+            .send_message(MessageTarget::Broadcast {
+                across_couplings: false,
+                include_self: false,
+            });
+
+        lights
+            .abblend
+            .relay(&lights.voltage)
+            .var_writer("Abblendlicht");
+
         lights.fern.relay(&lights.voltage).var_writer("Fernlicht");
+
         lights.rueck.relay(&lights.voltage).var_writer("Ruecklicht");
+
         lights
             .rueckfahr
             .relay(&lights.voltage)
             .var_writer("Rueckfahrlicht");
+
         lights.brems.relay(&lights.voltage).var_writer("Bremslicht");
 
         let blinker_lights_state = lights.blinker_state.blinker(
@@ -69,15 +92,18 @@ pub fn add_lights() -> LightState {
         blinker_lights_state
             .left
             .forward(&lights.blinker_lampe_links);
+
         blinker_lights_state
             .right
             .forward(&lights.blinker_lampe_rechts);
+
         blinker_lights_state.warning.forward(&lights.lm_warnblinker);
 
         lights
             .blinker_lampe_links
             .to_float()
             .var_writer("BlinkerLeft");
+
         lights
             .blinker_lampe_rechts
             .to_float()

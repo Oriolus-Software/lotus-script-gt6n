@@ -1,18 +1,19 @@
 use lotus_rt_extra::{
     cockpit_simple::{
-        button_inout, button_twosided_springloaded, std_button, step_switch, switch,
         ButtonInOutState, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
-        ButtonTwoSidedSpringLoadedState, StepSwitchProperties, SwitchProperties,
+        ButtonTwoSidedSpringLoadedState, StepSwitchProperties, SwitchProperties, button_inout,
+        button_twosided_springloaded, std_button, step_switch, switch,
     },
-    drive_control::{sollwertgeber, SollwertgeberProperties},
+    drive_control::{SollwertgeberProperties, sollwertgeber},
     shared::Shared,
 };
 
 use crate::cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState};
 
 #[derive(Debug, Clone)]
-pub struct CockpitState {
+pub struct Cockpit {
     pub lightcheck: Shared<bool>,
+    pub schloss: Shared<bool>,
     pub richtungswender: Shared<RichtungswenderState>,
     pub sollwertgeber: Shared<f32>,
     pub pantograph: Shared<ButtonTwoSidedSpringLoadedState>,
@@ -51,11 +52,21 @@ pub struct CockpitState {
     pub lm_notablegen: Shared<bool>,
 }
 
-pub struct CockpitRearState {}
+pub struct CockpitRear {}
 
-pub fn add_cockpit() -> CockpitState {
+pub fn add_cockpit() -> Cockpit {
     let rw_lock = Shared::new(false);
+    let schloss_lock = Shared::new(false);
     let voltage_r = Shared::<f32>::new(1.0);
+
+    let schloss = switch(
+        SwitchProperties::builder()
+            .switch_event_on("Key_Reverser_L")
+            .switch_event_off("Key_Reverser_R")
+            .animation_var("Schluessel_A_RW_turned")
+            .locked(schloss_lock.clone())
+            .build(),
+    );
 
     let richtungswender = step_switch::<RichtungswenderState>(
         StepSwitchProperties::builder()
@@ -64,20 +75,23 @@ pub fn add_cockpit() -> CockpitState {
             .animation_var("A_CP_Richtungswender")
             .position_min(RichtungswenderState::O)
             .position_max(RichtungswenderState::R)
-            .blocked(rw_lock.clone())
+            .locked(rw_lock.or(&schloss.invert()).clone())
             .sound("Snd_CP_A_Reverser")
             .build(),
         None::<fn() -> RichtungswenderState>,
         None::<fn() -> RichtungswenderState>,
     );
 
+    richtungswender
+        .process(|f| !matches!(f, RichtungswenderState::O | RichtungswenderState::I))
+        .forward(&schloss_lock);
+
     let sollwertgeber = sollwertgeber(
         SollwertgeberProperties::builder()
             .animation("A_CP_Sollwertgeber")
-            .lock(richtungswender.process(
-                |state| matches!(state, RichtungswenderState::O | RichtungswenderState::I),
-                true,
-            ))
+            .lock(richtungswender.process(|state| {
+                matches!(state, RichtungswenderState::O | RichtungswenderState::I)
+            }))
             .speed((1.0, 5.0, 20.0))
             .rw_lock(rw_lock.clone())
             .input_events((
@@ -118,7 +132,7 @@ pub fn add_cockpit() -> CockpitState {
         value
     };
 
-    let state = CockpitState {
+    let state = Cockpit {
         richtungswender,
         sollwertgeber,
         lm_check: lm_check.clone(),
@@ -158,6 +172,7 @@ pub fn add_cockpit() -> CockpitState {
                 .sound_off("Snd_CP_A_BtnUp")
                 .build(),
         ),
+        schloss,
         beleuchtung_aussen: step_switch::<OutsideLightSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus("FrontLightMinus")

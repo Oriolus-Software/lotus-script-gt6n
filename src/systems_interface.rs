@@ -1,5 +1,6 @@
 use lotus_rt::{spawn, wait};
 use lotus_rt_extra::{
+    cockpit_special::{TokenProperties, TokenSlot, token},
     doors::DoorControlMode,
     shared::{Shared, multiple_on_change},
     vehicle_systems::BlinkerState,
@@ -7,7 +8,7 @@ use lotus_rt_extra::{
 use lotus_script::var::set_var;
 
 use crate::{
-    cockpit::CockpitState,
+    cockpit::Cockpit,
     cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
     doors::DoorsState,
     lights::LightState,
@@ -18,7 +19,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct SystemStates {
-    pub cockpit: CockpitState,
+    pub cockpit: Cockpit,
     pub passenger: PassengerElementsState,
     pub traction: TractionState,
     pub lights: LightState,
@@ -30,12 +31,19 @@ pub struct SystemStates {
 struct InterfaceState {
     cockpit_a_active: Shared<bool>,
     cockpit_a_drive: Shared<bool>,
+    schluessel: Shared<Option<Schluessel>>,
 }
 
 #[derive(Clone)]
 pub struct Interface {
     systems: SystemStates,
     interface: InterfaceState,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Schluessel {
+    Vorne,
+    Hinten,
 }
 
 impl Default for Interface {
@@ -64,11 +72,33 @@ pub fn systems_interface(channels: SystemStates) -> Interface {
             cockpit_a_active: channels_clone
                 .cockpit
                 .richtungswender
-                .process(|r| !matches!(r, RichtungswenderState::O), false),
-            cockpit_a_drive: channels_clone.cockpit.richtungswender.process(
-                |r| matches!(r, RichtungswenderState::V | RichtungswenderState::R),
-                false,
-            ),
+                .process(|r| !matches!(r, RichtungswenderState::O)),
+            cockpit_a_drive: channels_clone
+                .cockpit
+                .richtungswender
+                .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
+            schluessel: token::<Schluessel>(TokenProperties {
+                slots: vec![
+                    TokenSlot::builder()
+                        .token(Schluessel::Vorne)
+                        .visibility_var("Schluessel_A_RW")
+                        .input_event_set("InsertKey_Reverser")
+                        .input_event_reset("Key_Reverser_R")
+                        .sound_set("Snd_CP_A_KeyIn")
+                        .sound_reset("Snd_CP_A_KeyOut")
+                        .build(),
+                    TokenSlot::builder()
+                        .token(Schluessel::Hinten)
+                        .visibility_var("Schluessel_H")
+                        .input_event_set("InsertKey_Reverser")
+                        .input_event_set_cockpit_index(1)
+                        .input_event_reset("Key_Reverser_R")
+                        .input_event_reset_cockpit_index(1)
+                        .sound_set("Snd_CP_B_KeyIn")
+                        .sound_reset("Snd_CP_B_KeyOut")
+                        .build(),
+                ],
+            }),
         },
     };
 
@@ -138,7 +168,7 @@ pub fn systems_interface(channels: SystemStates) -> Interface {
     state
 }
 
-async fn federspeicher(cockpit: CockpitState, traction: TractionState, interface: InterfaceState) {
+async fn federspeicher(cockpit: Cockpit, traction: TractionState, interface: InterfaceState) {
     let mut prev = false;
     loop {
         let new_value = !interface.cockpit_a_drive.get()
@@ -347,7 +377,7 @@ fn inside_lights(state: &Interface) {
 
 async fn door_control(
     doors: DoorsState,
-    cockpit: CockpitState,
+    cockpit: Cockpit,
     passenger: PassengerElementsState,
     traction: TractionState,
 ) {

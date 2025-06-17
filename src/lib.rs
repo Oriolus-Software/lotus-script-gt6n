@@ -1,11 +1,13 @@
-use lotus_extra::messages::std_messages::MsgVehNumber;
+use std::f32::NAN;
+
+use lotus_extra::messages::std_messages::{MsgLight, MsgVehNumber};
 use lotus_rt_extra::{messages::process_message_rt_handler, shared::Shared};
 use lotus_script::{
     Script,
     graphics::textures::{Texture, TextureAction, TextureCreationOptions},
     log,
     math::UVec2,
-    message::MessageMeta,
+    message::{Coupling, MessageMeta},
     prelude::MessageType,
     script,
     var::{get_var, set_var},
@@ -31,8 +33,6 @@ script!(ScriptGt6n);
 pub struct ScriptGt6n {
     test_tex: Option<Texture>,
     interface: Interface,
-    // source_test_tex: Option<Texture>,
-    test_message_shared: Shared<MsgVehNumber>,
 }
 
 impl Default for ScriptGt6n {
@@ -40,9 +40,9 @@ impl Default for ScriptGt6n {
         Self {
             test_tex: None,
             interface: Interface::default(),
-            test_message_shared: Shared::new(MsgVehNumber {
-                value: "".to_string(),
-            }),
+            // test_message_shared: Shared::new(MsgVehNumber {
+            //     value: "".to_string(),
+            // }),
         }
     }
 }
@@ -51,50 +51,22 @@ impl Script for ScriptGt6n {
     fn init(&mut self) {
         log::info!("init -----------------------------");
 
-        if acceleration_vs_ground().is_nan() {
-            log::info!("acceleration is nan");
-        }
-        if velocity_vs_ground().is_nan() {
-            log::info!("velocity is nan");
-        }
-
-        if Bogie::get(0).is_err() {
-            log::info!("bogie a is error");
-        }
-        if Bogie::get(1).is_err() {
-            log::info!("bogie b is error");
-        }
-        if Bogie::get(2).is_err() {
-            log::info!("bogie c is error");
-        }
-        if Bogie::get(3).is_err() {
-            log::info!("bogie d is error");
-        }
-
         if Axle::get(0, 0).is_err() {
-            log::info!("axle 0-0 is error");
-        }
+            log::error!("Axle 0, 0 not found");
+        };
         if Axle::get(0, 1).is_err() {
-            log::info!("axle 0-1 is error");
-        }
-        if Axle::get(1, 0).is_err() {
-            log::info!("axle 1-0 is error");
-        }
-        if Axle::get(1, 1).is_err() {
-            log::info!("axle 1-1 is error");
-        }
-        if Axle::get(2, 0).is_err() {
-            log::info!("axle 2-0 is error");
-        }
-        if Axle::get(2, 1).is_err() {
-            log::info!("axle 2-1 is error");
-        }
-        if Axle::get(3, 0).is_err() {
-            log::info!("axle 3-0 is error");
-        }
-        if Axle::get(3, 1).is_err() {
-            log::info!("axle 3-1 is error");
-        }
+            log::error!("Axle 0, 1 not found");
+        };
+
+        if Axle::get(0, 2).is_err() {
+            log::error!("Axle 0, 2 not found");
+        };
+        if acceleration_vs_ground().is_nan() {
+            log::error!("Acceleration not found");
+        };
+
+        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Front));
+        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Rear));
 
         self.interface = Interface::default();
 

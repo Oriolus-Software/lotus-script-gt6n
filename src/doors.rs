@@ -99,10 +99,9 @@ pub fn doors() -> DoorsState {
 
             control.door_target.forward(&door_target);
 
-            let closed = door.position.process(
-                |v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed,
-                false,
-            );
+            let closed = door
+                .position
+                .process(|v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed);
 
             DoorsWithController {
                 door,
@@ -136,7 +135,7 @@ pub fn doors() -> DoorsState {
 
     state
         .door_1_override
-        .process(|&v| v == DoorControlMode::Automatic, true)
+        .process(|&v| v == DoorControlMode::Automatic)
         .and(&state.doors_with_controller[0].control.warning)
         .blink_relay(
             BlinkRelayProperties::builder()
@@ -158,7 +157,7 @@ pub fn doors() -> DoorsState {
             .and(
                 &state
                     .door_1_override
-                    .process(|&v| v == DoorControlMode::Automatic, true),
+                    .process(|&v| v == DoorControlMode::Automatic),
             )
             .blink_relay(
                 BlinkRelayProperties::builder()
