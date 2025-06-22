@@ -229,3 +229,63 @@ impl StepSwitchPosition for DoorSwitch {
         ]
     }
 }
+
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BackDriveSwitch {
+    Drive,
+    Neutral,
+    #[default]
+    Brake,
+    MaxBrake,
+}
+
+impl StepSwitchPosition for BackDriveSwitch {
+    fn next(&self) -> Self {
+        match self {
+            BackDriveSwitch::Drive => BackDriveSwitch::Neutral,
+            BackDriveSwitch::Neutral => BackDriveSwitch::Brake,
+            BackDriveSwitch::Brake => BackDriveSwitch::MaxBrake,
+            BackDriveSwitch::MaxBrake => BackDriveSwitch::MaxBrake,
+        }
+    }
+
+    fn previous(&self) -> Self {
+        match self {
+            BackDriveSwitch::Drive => BackDriveSwitch::Drive,
+            BackDriveSwitch::Neutral => BackDriveSwitch::Drive,
+            BackDriveSwitch::Brake => BackDriveSwitch::Neutral,
+            BackDriveSwitch::MaxBrake => BackDriveSwitch::Brake,
+        }
+    }
+
+    fn generate_with_this_sound(
+        sound: &Option<String>,
+        _: Self,
+        _: Self,
+    ) -> Vec<CockpitSoundAndVarSetState<Self, f32>> {
+        vec![
+            CockpitSoundAndVarSetState {
+                input: BackDriveSwitch::Drive,
+                output: 1.0,
+                sound: sound.clone(),
+            },
+            CockpitSoundAndVarSetState {
+                input: BackDriveSwitch::Neutral,
+                output: 0.0,
+                sound: sound.clone(),
+            },
+            CockpitSoundAndVarSetState {
+                input: BackDriveSwitch::Brake,
+                output: -1.0,
+                sound: sound.clone(),
+            },
+            CockpitSoundAndVarSetState {
+                input: BackDriveSwitch::MaxBrake,
+                output: -2.0,
+                sound: sound.clone(),
+            },
+        ]
+    }
+}

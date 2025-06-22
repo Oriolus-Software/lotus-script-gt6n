@@ -2,14 +2,17 @@ use lotus_rt_extra::{
     cockpit_simple::{
         ButtonInOutProperties, ButtonInOutState, ButtonProperties,
         ButtonTwoSidedSpringLoadedProperties, ButtonTwoSidedSpringLoadedState,
-        StepSwitchProperties, SwitchProperties, button_inout, std_button, step_switch, switch,
-        switch_twosided_springloaded,
+        StepSwitchInputToggle, StepSwitchProperties, SwitchProperties, button_inout, std_button,
+        step_switch, switch, switch_twosided_springloaded,
     },
     drive_control::{SollwertgeberProperties, sollwertgeber},
+    input::InputEvent,
     shared::Shared,
 };
 
-use crate::cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState};
+use crate::cockpit_types::{
+    BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
+};
 
 #[derive(Debug, Clone)]
 pub struct Cockpit {
@@ -53,33 +56,41 @@ pub struct Cockpit {
     pub lm_notablegen: Shared<bool>,
 }
 
-pub struct CockpitRear {}
+#[derive(Debug, Clone)]
+pub struct CockpitRear {
+    pub schloss: Shared<bool>,
+    pub fahrschalter: Shared<BackDriveSwitch>,
+    pub klingel: Shared<bool>,
+    pub blinker: Shared<BlinkerSwitch>,
+    pub tuer_4: Shared<bool>,
+    pub lm_blinker_rechts: Shared<bool>,
+    pub lm_blinker_links: Shared<bool>,
+}
 
-pub fn add_cockpit() -> Cockpit {
+pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
     let rw_lock = Shared::new(false);
     let schloss_lock = Shared::new(false);
-    let voltage_r = Shared::<f32>::new(1.0);
 
     let schloss = switch(
         SwitchProperties::builder()
-            .input_event_on("Key_Reverser_L")
-            .input_event_off("Key_Reverser_R")
+            .input_event_on(InputEvent::new("Key_Reverser_L", 0))
+            .input_event_off(InputEvent::new("Key_Reverser_R", 0))
             .animation_var("Schluessel_A_RW_turned")
-            .standard_position(true)
+            .standard_position(false)
             .locked(schloss_lock.clone())
             .build(),
     );
 
     let richtungswender = step_switch::<RichtungswenderState>(
         StepSwitchProperties::builder()
-            .input_event_plus("ReverserPlus")
-            .input_event_minus("ReverserMinus")
+            .input_event_plus(InputEvent::new("ReverserPlus", 0))
+            .input_event_minus(InputEvent::new("ReverserMinus", 0))
             .animation_var("A_CP_Richtungswender")
             .position_min(RichtungswenderState::O)
             .position_max(RichtungswenderState::R)
             .locked(rw_lock.or(&schloss.invert()).clone())
             .sound("Snd_CP_A_Reverser")
-            .standard_position(RichtungswenderState::V)
+            .standard_position(RichtungswenderState::I)
             .build(),
         None::<fn() -> RichtungswenderState>,
         None::<fn() -> RichtungswenderState>,
@@ -98,10 +109,10 @@ pub fn add_cockpit() -> Cockpit {
             .speed((1.0, 5.0, 20.0))
             .rw_lock(rw_lock.clone())
             .input_events((
-                "Throttle".to_string(),
-                "Neutral".to_string(),
-                "Brake".to_string(),
-                "MaxBrake".to_string(),
+                InputEvent::new("Throttle", 0),
+                InputEvent::new("Neutral", 0),
+                InputEvent::new("Brake", 0),
+                InputEvent::new("MaxBrake", 0),
             ))
             .sounds((
                 "Snd_CP_A_SWG_NotchNeutral".to_string(),
@@ -116,7 +127,7 @@ pub fn add_cockpit() -> Cockpit {
     let gt6n_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
         std_button(
             ButtonProperties::builder()
-                .input_event(input_event)
+                .input_event(InputEvent::new(input_event, 0))
                 .animation_var(animation_var)
                 .sound_on("Snd_CP_A_BtnDn")
                 .sound_off("Snd_CP_A_BtnUp")
@@ -150,8 +161,8 @@ pub fn add_cockpit() -> Cockpit {
 
         pantograph: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
-                .input_event_minus("PantographDn")
-                .input_event_plus("PantographUp")
+                .input_event_minus(InputEvent::new("PantographDn", 0))
+                .input_event_plus(InputEvent::new("PantographUp", 0))
                 .animation_var("A_CP_SW_Pantograph")
                 .sound_on("Snd_CP_A_RotBtnOn")
                 .sound_off("Snd_CP_A_RotBtnOff")
@@ -159,8 +170,8 @@ pub fn add_cockpit() -> Cockpit {
         ),
         hauptschalter: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
-                .input_event_minus("HighVoltageMainSwitchOff")
-                .input_event_plus("HighVoltageMainSwitchOn")
+                .input_event_minus(InputEvent::new("HighVoltageMainSwitchOff", 0))
+                .input_event_plus(InputEvent::new("HighVoltageMainSwitchOn", 0))
                 .animation_var("A_CP_SW_Hauptschalter")
                 .sound_on("Snd_CP_A_RotBtnOn")
                 .sound_off("Snd_CP_A_RotBtnOff")
@@ -169,7 +180,7 @@ pub fn add_cockpit() -> Cockpit {
 
         federspeicher_overwrite: button_inout(
             ButtonInOutProperties::builder()
-                .input_event("FspDeactiveToggle")
+                .input_event(InputEvent::new("FspDeactiveToggle", 0))
                 .animation_var("A_CP_TS_Fsp")
                 .sound_on("Snd_CP_A_BtnDn")
                 .sound_off("Snd_CP_A_BtnUp")
@@ -178,8 +189,8 @@ pub fn add_cockpit() -> Cockpit {
         schloss,
         beleuchtung_aussen: step_switch::<OutsideLightSwitch>(
             StepSwitchProperties::builder()
-                .input_event_minus("FrontLightMinus")
-                .input_event_plus("FrontLightPlus")
+                .input_event_minus(InputEvent::new("FrontLightMinus", 0))
+                .input_event_plus(InputEvent::new("FrontLightPlus", 0))
                 .position_min(OutsideLightSwitch::Off)
                 .position_max(OutsideLightSwitch::Fern)
                 .animation_var("A_CP_SW_Aussenbel")
@@ -190,8 +201,8 @@ pub fn add_cockpit() -> Cockpit {
         ),
         blinker: step_switch::<BlinkerSwitch>(
             StepSwitchProperties::builder()
-                .input_event_minus("IndicatorToLeft")
-                .input_event_plus("IndicatorToRight")
+                .input_event_minus(InputEvent::new("IndicatorToLeft", 0))
+                .input_event_plus(InputEvent::new("IndicatorToRight", 0))
                 .position_min(BlinkerSwitch::Left)
                 .position_max(BlinkerSwitch::Right)
                 .animation_var("A_CP_SW_Blinker")
@@ -202,7 +213,7 @@ pub fn add_cockpit() -> Cockpit {
         ),
         warnblinker: button_inout(
             ButtonInOutProperties::builder()
-                .input_event("IndicatorWarn")
+                .input_event(InputEvent::new("IndicatorWarn", 0))
                 .animation_var("A_CP_TS_Warnblinker")
                 .sound_on("Snd_CP_A_BtnDn")
                 .sound_off("Snd_CP_A_BtnUp")
@@ -211,15 +222,15 @@ pub fn add_cockpit() -> Cockpit {
 
         beleuchtung_fahrgastraum: switch(
             SwitchProperties::builder()
-                .input_event_toggle("CabinLightToggle")
+                .input_event_toggle(InputEvent::new("CabinLightToggle", 0))
                 .animation_var("A_CP_SW_Innenbel")
                 .sound_switch("Snd_CP_A_Switch")
                 .build(),
         ),
         beleuchtung_fahrerraum: step_switch(
             StepSwitchProperties::builder()
-                .input_event_minus("CockpitLightMinus")
-                .input_event_plus("CockpitLightPlus")
+                .input_event_minus(InputEvent::new("CockpitLightMinus", 0))
+                .input_event_plus(InputEvent::new("CockpitLightPlus", 0))
                 .position_min(0)
                 .position_max(2)
                 .animation_var("A_CP_SW_Fstbel")
@@ -231,8 +242,8 @@ pub fn add_cockpit() -> Cockpit {
 
         tueren: step_switch::<DoorSwitch>(
             StepSwitchProperties::builder()
-                .input_event_plus("DoorsPlus")
-                .input_event_minus("DoorsMinus")
+                .input_event_plus(InputEvent::new("DoorsPlus", 0))
+                .input_event_minus(InputEvent::new("DoorsMinus", 0))
                 .position_min(DoorSwitch::Tuer1)
                 .position_max(DoorSwitch::Open)
                 .position_min_is_springloaded(true)
@@ -245,8 +256,8 @@ pub fn add_cockpit() -> Cockpit {
 
         scheibenwischer: step_switch(
             StepSwitchProperties::builder()
-                .input_event_minus("WiperMinus")
-                .input_event_plus("WiperPlus")
+                .input_event_minus(InputEvent::new("WiperMinus", 0))
+                .input_event_plus(InputEvent::new("WiperPlus", 0))
                 .position_min(0)
                 .position_max(3)
                 .animation_var("A_CP_SW_Wischer")
@@ -257,8 +268,8 @@ pub fn add_cockpit() -> Cockpit {
         ),
         sprechstelle: switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
-                .input_event_minus("SprechstelleClear")
-                .input_event_plus("SprechstelleSpeak")
+                .input_event_minus(InputEvent::new("SprechstelleClear", 0))
+                .input_event_plus(InputEvent::new("SprechstelleSpeak", 0))
                 .animation_var("A_CP_SW_Sprechstelle")
                 .sound_on("Snd_CP_A_RotBtnOn")
                 .sound_off("Snd_CP_A_RotBtnOff")
@@ -266,8 +277,8 @@ pub fn add_cockpit() -> Cockpit {
         ),
         zugbildung: step_switch(
             StepSwitchProperties::builder()
-                .input_event_minus("ZugbildungMinus")
-                .input_event_plus("ZugbildungPlus")
+                .input_event_minus(InputEvent::new("ZugbildungMinus", 0))
+                .input_event_plus(InputEvent::new("ZugbildungPlus", 0))
                 .position_min(-1)
                 .position_max(1)
                 .animation_var("A_CP_SW_Zugbildung")
@@ -301,6 +312,87 @@ pub fn add_cockpit() -> Cockpit {
     state.lm_doors_closed.trigger_sound("Snd_CP_A_DoorsClosed");
 
     state
+}
+
+pub fn add_cockpit_rear(voltage_r: Shared<f32>) -> CockpitRear {
+    let schloss_lock = Shared::new(false);
+
+    let gt6n_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
+        std_button(
+            ButtonProperties::builder()
+                .input_event(InputEvent::new(input_event, 1))
+                .animation_var(animation_var)
+                .sound_on("Snd_CP_B_BtnDn")
+                .sound_off("Snd_CP_B_BtnUp")
+                .build(),
+        )
+    };
+
+    let std_lm = |variable: &str| -> Shared<bool> {
+        let value = Shared::default();
+        value.to_float().multiply(&voltage_r).var_writer(variable);
+        // value.set(false);
+        value
+    };
+
+    CockpitRear {
+        schloss: switch(
+            SwitchProperties::builder()
+                .input_event_on(InputEvent::new("Key_Reverser_L", 1))
+                .input_event_off(InputEvent::new("Key_Reverser_R", 1))
+                .animation_var("Schluessel_H_turned")
+                .standard_position(false)
+                .locked(schloss_lock.clone())
+                .build(),
+        ),
+        fahrschalter: step_switch(
+            StepSwitchProperties::builder()
+                .input_event_minus(InputEvent::new("ThrottleLeaverPlus", 1))
+                .input_event_plus(InputEvent::new("ThrottleLeaverMinus", 1))
+                .input_events_set(vec![
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("Throttle", 1))
+                        .set(BackDriveSwitch::Drive)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("Neutral", 1))
+                        .set(BackDriveSwitch::Neutral)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("Brake", 1))
+                        .set(BackDriveSwitch::Brake)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("MaxBrake", 1))
+                        .set(BackDriveSwitch::MaxBrake)
+                        .build(),
+                ])
+                .position_min(BackDriveSwitch::Drive)
+                .position_max(BackDriveSwitch::MaxBrake)
+                .animation_var("B_CP_SW_Fahren")
+                .sound("Snd_CP_B_Switch")
+                .position_min_is_springloaded(true)
+                .build(),
+            None::<fn() -> BackDriveSwitch>,
+            None::<fn() -> BackDriveSwitch>,
+        ),
+        klingel: gt6n_button("Bell1", "B_CP_TS_Klingel"),
+        blinker: step_switch::<BlinkerSwitch>(
+            StepSwitchProperties::builder()
+                .input_event_minus(InputEvent::new("IndicatorToLeft", 1))
+                .input_event_plus(InputEvent::new("IndicatorToRight", 1))
+                .position_min(BlinkerSwitch::Left)
+                .position_max(BlinkerSwitch::Right)
+                .animation_var("B_CP_SW_Blinker")
+                .sound("Snd_CP_B_Switch")
+                .build(),
+            None::<fn() -> BlinkerSwitch>,
+            None::<fn() -> BlinkerSwitch>,
+        ),
+        tuer_4: gt6n_button("Door4Toggle", "B_CP_TS_Tuer4"),
+        lm_blinker_rechts: std_lm("B_LM_BlinkerRechts"),
+        lm_blinker_links: std_lm("B_LM_BlinkerLinks"),
+    }
 }
 
 impl From<RichtungswenderState> for i8 {

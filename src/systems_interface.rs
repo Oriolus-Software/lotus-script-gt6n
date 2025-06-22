@@ -2,13 +2,14 @@ use lotus_rt::{spawn, wait};
 use lotus_rt_extra::{
     cockpit_special::{TokenProperties, TokenSlot, token},
     doors::DoorControlMode,
+    input::InputEvent,
     shared::{Shared, multiple_on_change},
     vehicle_systems::BlinkerState,
 };
 use lotus_script::var::set_var;
 
 use crate::{
-    cockpit::Cockpit,
+    cockpit::{Cockpit, CockpitRear},
     cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
     doors::DoorsState,
     lights::LightState,
@@ -20,6 +21,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct SystemStates {
     pub cockpit: Cockpit,
+    pub cockpit_rear: CockpitRear,
     pub passenger: PassengerElementsState,
     pub traction: TractionState,
     pub lights: LightState,
@@ -48,8 +50,11 @@ pub enum Schluessel {
 
 impl Default for Interface {
     fn default() -> Self {
+        let voltage_r = Shared::<f32>::new(1.0);
+
         let sys = systems_interface(SystemStates {
-            cockpit: crate::cockpit::add_cockpit(),
+            cockpit: crate::cockpit::add_cockpit(voltage_r.clone()),
+            cockpit_rear: crate::cockpit::add_cockpit_rear(voltage_r.clone()),
             passenger: crate::passenger_elements::passenger_elements(),
             traction: crate::traction::add_traction(),
             lights: crate::lights::add_lights(),
@@ -79,23 +84,21 @@ pub fn systems_interface(channels: SystemStates) -> Interface {
                 .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
             schluessel: token::<Schluessel>(
                 TokenProperties::builder()
-                    .standard_position(Schluessel::Vorne)
+                    // .standard_position(Schluessel::Vorne)
                     .slots(vec![
                         TokenSlot::builder()
                             .token(Schluessel::Vorne)
                             .visibility_var("Schluessel_A_RW")
-                            .input_event_set("InsertKey_Reverser")
-                            .input_event_reset("Key_Reverser_R")
+                            .input_event_set(InputEvent::new("InsertKey_Reverser", 0))
+                            .input_event_reset(InputEvent::new("Key_Reverser_R", 0))
                             .sound_set("Snd_CP_A_KeyIn")
                             .sound_reset("Snd_CP_A_KeyOut")
                             .build(),
                         TokenSlot::builder()
                             .token(Schluessel::Hinten)
                             .visibility_var("Schluessel_H")
-                            .input_event_set("InsertKey_Reverser")
-                            .input_event_set_cockpit_index(1)
-                            .input_event_reset("Key_Reverser_R")
-                            .input_event_reset_cockpit_index(1)
+                            .input_event_set(InputEvent::new("InsertKey_Reverser", 1))
+                            .input_event_reset(InputEvent::new("Key_Reverser_R", 1))
                             .sound_set("Snd_CP_B_KeyIn")
                             .sound_reset("Snd_CP_B_KeyOut")
                             .build(),
