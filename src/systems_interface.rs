@@ -3,6 +3,7 @@ use lotus_rt_extra::{
     cockpit_special::{TokenProperties, TokenSlot, token},
     doors::DoorControlMode,
     input::InputEvent,
+    physic::{InertionSliderBumpProperties, InertionSliderProperties, InertionSliderState},
     shared::{Shared, multiple_on_change},
     vehicle_systems::BlinkerState,
 };
@@ -10,7 +11,9 @@ use lotus_script::var::set_var;
 
 use crate::{
     cockpit::{Cockpit, CockpitRear},
-    cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
+    cockpit_types::{
+        BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
+    },
     doors::DoorsState,
     lights::LightState,
     misc::MiscState,
@@ -33,13 +36,15 @@ pub struct SystemStates {
 struct InterfaceState {
     cockpit_a_active: Shared<bool>,
     cockpit_a_drive: Shared<bool>,
-    schluessel: Shared<Option<Schluessel>>,
+    cockpit_b: Shared<bool>,
+    active: Shared<bool>,
+    drive: Shared<bool>,
 }
 
 #[derive(Clone)]
 pub struct Interface {
     systems: SystemStates,
-    interface: InterfaceState,
+    state: InterfaceState,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -71,175 +76,178 @@ impl Default for Interface {
 
 pub fn systems_interface(channels: SystemStates) -> Interface {
     let channels_clone = channels.clone();
-    let state = Interface {
-        systems: channels,
-        interface: InterfaceState {
-            cockpit_a_active: channels_clone
-                .cockpit
-                .richtungswender
-                .process(|r| !matches!(r, RichtungswenderState::O)),
-            cockpit_a_drive: channels_clone
-                .cockpit
-                .richtungswender
-                .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R)),
-            schluessel: token::<Schluessel>(
-                TokenProperties::builder()
-                    // .standard_position(Schluessel::Vorne)
-                    .slots(vec![
-                        TokenSlot::builder()
-                            .token(Schluessel::Vorne)
-                            .visibility_var("Schluessel_A_RW")
-                            .input_event_set(InputEvent::new("InsertKey_Reverser", 0))
-                            .input_event_reset(InputEvent::new("Key_Reverser_R", 0))
-                            .sound_set("Snd_CP_A_KeyIn")
-                            .sound_reset("Snd_CP_A_KeyOut")
-                            .build(),
-                        TokenSlot::builder()
-                            .token(Schluessel::Hinten)
-                            .visibility_var("Schluessel_H")
-                            .input_event_set(InputEvent::new("InsertKey_Reverser", 1))
-                            .input_event_reset(InputEvent::new("Key_Reverser_R", 1))
-                            .sound_set("Snd_CP_B_KeyIn")
-                            .sound_reset("Snd_CP_B_KeyOut")
-                            .build(),
-                    ])
+
+    let cockpit_a_active = channels_clone
+        .cockpit
+        .richtungswender
+        .process(|r| !matches!(r, RichtungswenderState::O));
+    let cockpit_a_drive = channels_clone
+        .cockpit
+        .richtungswender
+        .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R));
+    let cockpit_b = channels_clone.cockpit_rear.schloss.clone();
+
+    token::<Schluessel>(
+        TokenProperties::builder()
+            .standard_position(Schluessel::Vorne)
+            .slots(vec![
+                TokenSlot::builder()
+                    .token(Schluessel::Vorne)
+                    .visibility_var("Schluessel_A_RW")
+                    .input_event_set(InputEvent::new("InsertKey_Reverser", 0))
+                    .input_event_reset(InputEvent::new("Key_Reverser_R", 0))
+                    .sound_set("Snd_CP_A_KeyIn")
+                    .sound_reset("Snd_CP_A_KeyOut")
+                    .locked_deactivate(channels_clone.cockpit.schloss.delay_relay(0.0, 0.1).clone())
                     .build(),
-            ),
+                TokenSlot::builder()
+                    .token(Schluessel::Hinten)
+                    .visibility_var("Schluessel_H")
+                    .input_event_set(InputEvent::new("InsertKey_Reverser", 1))
+                    .input_event_reset(InputEvent::new("Key_Reverser_R", 1))
+                    .sound_set("Snd_CP_B_KeyIn")
+                    .sound_reset("Snd_CP_B_KeyOut")
+                    .locked_deactivate(
+                        channels_clone
+                            .cockpit_rear
+                            .schloss
+                            .delay_relay(0.0, 0.1)
+                            .clone(),
+                    )
+                    .build(),
+            ])
+            .build(),
+    );
+
+    let interface = Interface {
+        systems: channels,
+        state: InterfaceState {
+            cockpit_a_active: cockpit_a_active.clone(),
+            cockpit_a_drive: cockpit_a_drive.clone(),
+            cockpit_b: cockpit_b.clone(),
+            active: cockpit_a_active.or(&cockpit_b.clone()),
+            drive: cockpit_a_drive.or(&cockpit_b.clone()),
         },
     };
 
-    state.systems.lights.voltage.set(1.0);
+    interface.systems.lights.voltage.set(1.0);
 
-    traction_control(&state);
+    traction_control(&interface);
 
-    spawn(federspeicher(
-        state.systems.cockpit.clone(),
-        state.systems.traction.clone(),
-        state.interface.clone(),
-    ));
+    outside_lights(&interface);
 
-    spawn(sanding_unit(state.clone()));
+    blinker_lights(&interface);
 
-    outside_lights(&state);
-    blinker_lights(&state);
-
-    inside_lights(&state);
+    inside_lights(&interface);
 
     // Cockpit ---------------------------------------
 
-    state
+    interface
         .systems
         .cockpit
         // .klingel
         .mg_bremse
-        .or(&state.systems.cockpit.klingel)
-        .and(&state.interface.cockpit_a_active)
-        .forward(&state.systems.misc.klingel);
+        .or(&interface.systems.cockpit.klingel)
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.misc.klingel);
 
-    state
+    interface
         .systems
         .cockpit
         .lightcheck
-        .and(&state.interface.cockpit_a_active)
-        .forward(&state.systems.cockpit.lm_check);
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.cockpit.lm_check);
 
-    state
+    interface
         .systems
         .traction
         .federspeicher
-        .and(&state.interface.cockpit_a_active)
-        .forward(&state.systems.cockpit.lm_federspeicher);
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.cockpit.lm_federspeicher);
 
     // Doors ---------------------------------------
 
     spawn(door_control(
-        state.systems.doors.clone(),
-        state.systems.cockpit.clone(),
-        state.systems.passenger.clone(),
-        state.systems.traction.clone(),
+        interface.systems.doors.clone(),
+        interface.systems.cockpit.clone(),
+        interface.systems.passenger.clone(),
+        interface.systems.traction.clone(),
     ));
 
     // Misc Systems ---------------------------------------
 
-    state
-        .interface
-        .cockpit_a_active
+    interface
+        .state
+        .active
         .loop_sound("Snd_Cabin_IdleI".to_string());
 
-    state
-        .interface
-        .cockpit_a_drive
+    interface
+        .state
+        .drive
         .loop_sound("Snd_Cabin_IdleVR".to_string());
 
-    state
+    // Z Position ---------------------------------------
+
+    z_position();
+
+    //-----------------------------
+
+    interface
 }
 
-async fn federspeicher(cockpit: Cockpit, traction: TractionState, interface: InterfaceState) {
-    let mut prev = false;
-    loop {
-        let new_value = !interface.cockpit_a_drive.get()
-            || (interface.cockpit_a_active.get() && cockpit.federspeicher_overwrite.get().is_in());
+fn traction_control(interface: &Interface) {
+    let active = interface.state.active.clone();
+    let cockpit_b = interface.state.cockpit_b.clone();
 
-        if prev != new_value {
-            wait::seconds(0.3).await;
-            traction.federspeicher.set(new_value);
-        }
+    let direction = interface.systems.traction.direction.clone();
+    let richtungswender = interface.systems.cockpit.richtungswender.clone();
 
-        prev = new_value;
-
-        wait::next_tick().await;
-    }
-}
-
-async fn sanding_unit(state: Interface) {
-    let mut prev = false;
-    loop {
-        let new_value =
-            state.systems.cockpit.sanden.get() && state.interface.cockpit_a_active.get();
-
-        if prev != new_value {
-            state.systems.traction.sanding.set(new_value);
-            prev = new_value;
-        }
-
-        wait::next_tick().await;
-    }
-}
-
-fn traction_control(state: &Interface) {
-    let cockpit_a_active = state.interface.cockpit_a_active.clone();
-
-    let direction = state.systems.traction.direction.clone();
-    let richtungswender = state.systems.cockpit.richtungswender.clone();
-
-    multiple_on_change(
-        &[&cockpit_a_active.clone(), &richtungswender.clone()],
-        move || {
-            direction.set(if cockpit_a_active.get() {
-                match richtungswender.get() {
-                    RichtungswenderState::V => TractionDirection::Forward,
-                    RichtungswenderState::R => TractionDirection::Backward,
-                    _ => TractionDirection::Neutral,
+    multiple_on_change(&[&active.clone(), &richtungswender.clone()], move || {
+        direction.set(if active.get() {
+            match richtungswender.get() {
+                RichtungswenderState::V => TractionDirection::Forward,
+                RichtungswenderState::R => TractionDirection::Backward,
+                _ => {
+                    if cockpit_b.get() {
+                        TractionDirection::Backward
+                    } else {
+                        TractionDirection::Neutral
+                    }
                 }
-            } else {
-                TractionDirection::Neutral
-            });
-        },
-    );
+            }
+        } else {
+            TractionDirection::Neutral
+        });
+    });
 
-    let cockpit_a_active = state.interface.cockpit_a_active.clone();
+    let drive = interface.state.drive.clone();
+    let cockpit_a_drive = interface.state.cockpit_a_drive.clone();
+    let cockpit_b = interface.state.cockpit_b.clone();
 
-    let sollwertgeber = state.systems.cockpit.sollwertgeber.clone();
-    let traction_target = state.systems.traction.target.clone();
+    let sollwertgeber = interface.systems.cockpit.sollwertgeber.clone();
+    let rear_fahrschalter = interface.systems.cockpit_rear.fahrschalter.clone();
+
+    let traction_target = interface.systems.traction.target.clone();
 
     multiple_on_change(
-        &[&cockpit_a_active.clone(), &sollwertgeber.clone()],
+        &[
+            &drive.clone(),
+            &sollwertgeber.clone(),
+            &rear_fahrschalter.clone(),
+        ],
         move || {
-            traction_target.set(if cockpit_a_active.get() {
+            traction_target.set(if cockpit_a_drive.get() {
                 if sollwertgeber.get() < 0.0 {
                     sollwertgeber.get() * 1.111
                 } else {
                     sollwertgeber.get()
+                }
+            } else if cockpit_b.get() {
+                match rear_fahrschalter.get() {
+                    BackDriveSwitch::Drive => 0.5,
+                    BackDriveSwitch::Neutral => 0.0,
+                    BackDriveSwitch::Brake => -0.6,
+                    BackDriveSwitch::MaxBrake => -1.0,
                 }
             } else {
                 0.0
@@ -247,65 +255,86 @@ fn traction_control(state: &Interface) {
         },
     );
 
-    let cockpit_a_active = state.interface.cockpit_a_active.clone();
-    let cockpit_mg_bremse = state.systems.cockpit.mg_bremse.clone();
-    let mg_target = state.systems.traction.mg.clone();
+    let cockpit_a_drive = interface.state.cockpit_a_drive.clone();
+    let cockpit_mg_bremse = interface.systems.cockpit.mg_bremse.clone();
+
+    let mg_target = interface.systems.traction.mg.clone();
 
     multiple_on_change(
-        &[&cockpit_a_active.clone(), &cockpit_mg_bremse.clone()],
+        &[&cockpit_a_drive.clone(), &cockpit_mg_bremse.clone()],
         move || {
-            mg_target.set(cockpit_a_active.get() && cockpit_mg_bremse.get());
+            mg_target.set(cockpit_a_drive.get() && cockpit_mg_bremse.get());
         },
     );
 
-    set_var("v_Axle_mps_0_1_abs", 2.3);
-    set_var("abs", true);
+    interface
+        .systems
+        .cockpit
+        .sanden
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.traction.sanding);
+
+    interface
+        .systems
+        .cockpit
+        .federspeicher_overwrite
+        .process(|v| v.is_in())
+        .and(&interface.state.cockpit_a_active)
+        .or(&interface.state.drive.invert())
+        .delay_relay(0.3, 0.3)
+        .forward(&interface.systems.traction.federspeicher);
 }
 
-fn outside_lights(state: &Interface) {
-    let cockpit_a_active = state.interface.cockpit_a_active.clone();
-    let switch_aussen = state.systems.cockpit.beleuchtung_aussen.clone();
+fn outside_lights(interface: &Interface) {
+    interface
+        .systems
+        .cockpit
+        .beleuchtung_aussen
+        .process(|sw| *sw != OutsideLightSwitch::Off)
+        .forward(&interface.systems.lights.stand)
+        .forward(&interface.systems.lights.rueck)
+        .forward(&interface.systems.lights.instrumente);
 
-    let richtungswender = state.systems.cockpit.richtungswender.clone();
-    let sollwertgeber = state.systems.cockpit.sollwertgeber.clone();
+    interface
+        .systems
+        .cockpit
+        .beleuchtung_aussen
+        .process(|sw| (*sw == OutsideLightSwitch::Abblend) || (*sw == OutsideLightSwitch::Fern))
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.lights.abblend);
 
-    let instrumente = state.systems.lights.instrumente.clone();
-    let lm_fernlicht = state.systems.cockpit.lm_fernlicht.clone();
+    interface
+        .systems
+        .cockpit
+        .beleuchtung_aussen
+        .process(|sw| *sw == OutsideLightSwitch::Fern)
+        .and(&interface.state.cockpit_a_active)
+        .forward(&interface.systems.lights.fern)
+        .forward(&interface.systems.cockpit.lm_fernlicht);
 
-    let standlicht = state.systems.lights.stand.clone();
-    let ruecklicht = state.systems.lights.rueck.clone();
-    let abblend = state.systems.lights.abblend.clone();
-    let fern = state.systems.lights.fern.clone();
-    let rueckfahr = state.systems.lights.rueckfahr.clone();
-    let brems = state.systems.lights.brems.clone();
+    interface
+        .systems
+        .traction
+        .direction
+        .process(|d| *d == TractionDirection::Backward)
+        .and(&interface.state.drive)
+        .forward(&interface.systems.lights.rueckfahr);
 
-    multiple_on_change(
-        &[&switch_aussen.clone(), &cockpit_a_active.clone()],
-        move || {
-            let active = cockpit_a_active.get();
-            let switch_aussen = switch_aussen.get();
-            let switch_standlicht = switch_aussen != OutsideLightSwitch::Off;
-            let switch_abblend = (switch_aussen == OutsideLightSwitch::Abblend)
-                || (switch_aussen == OutsideLightSwitch::Fern);
-            let switch_fern = switch_aussen == OutsideLightSwitch::Fern;
-
-            standlicht.set(switch_standlicht);
-            ruecklicht.set(switch_standlicht);
-            instrumente.set(switch_standlicht);
-
-            abblend.set(switch_abblend && active);
-            fern.set(switch_fern && active);
-            lm_fernlicht.set(switch_fern && active);
-            rueckfahr.set(richtungswender.get() == RichtungswenderState::R);
-            brems.set(sollwertgeber.get() < 0.0);
-        },
-    );
+    interface
+        .systems
+        .traction
+        .target
+        .process(|t| *t < 0.0)
+        .and(&interface.state.drive)
+        .forward(&interface.systems.lights.brems);
 }
 
 fn blinker_lights(state: &Interface) {
-    let cockpit_a_active = state.interface.cockpit_a_active.clone();
+    let cockpit_a_active = state.state.cockpit_a_active.clone();
+    let cockpit_b = state.state.cockpit_b.clone();
     let switch_warnblinker = state.systems.cockpit.warnblinker.clone();
-    let switch_blinker = state.systems.cockpit.blinker.clone();
+    let switch_blinker_a = state.systems.cockpit.blinker.clone();
+    let switch_blinker_b = state.systems.cockpit_rear.blinker.clone();
     let lm_blinker_links = state.systems.cockpit.lm_blinker_links.clone();
     let lm_blinker_rechts = state.systems.cockpit.lm_blinker_rechts.clone();
     let lm_warnblinker = state.systems.cockpit.lm_warnblinker.clone();
@@ -315,16 +344,24 @@ fn blinker_lights(state: &Interface) {
     multiple_on_change(
         &[
             &cockpit_a_active.clone(),
+            &cockpit_b.clone(),
             &switch_warnblinker.clone(),
-            &switch_blinker.clone(),
+            &switch_blinker_a.clone(),
+            &switch_blinker_b.clone(),
         ],
         move || {
             blinker_state.set(if switch_warnblinker.get().is_in() {
                 BlinkerState::Warning
             } else if cockpit_a_active.clone().get() {
-                match switch_blinker.get() {
+                match switch_blinker_a.get() {
                     BlinkerSwitch::Left => BlinkerState::Left,
                     BlinkerSwitch::Right => BlinkerState::Right,
+                    _ => BlinkerState::Off,
+                }
+            } else if cockpit_b.clone().get() {
+                match switch_blinker_b.get() {
+                    BlinkerSwitch::Left => BlinkerState::Right,
+                    BlinkerSwitch::Right => BlinkerState::Left,
                     _ => BlinkerState::Off,
                 }
             } else {
@@ -454,4 +491,35 @@ async fn door_control(
 
         wait::next_tick().await;
     }
+}
+
+fn z_position() {
+    let value = Shared::<f32>::var_reader("ZStellung_A")
+        .add_shared(&Shared::<f32>::var_reader("ZStellung_B"))
+        .multiply_value(4.0);
+
+    InertionSliderState::default()
+        .inertion_slider(
+            InertionSliderProperties::builder()
+                .friction(0.01)
+                .additional_force(value)
+                .damping_constant(Shared::new(2.0))
+                .bumps([
+                    Some(
+                        InertionSliderBumpProperties::builder()
+                            .position(-2.0)
+                            .reflection(0.5)
+                            .build(),
+                    ),
+                    Some(
+                        InertionSliderBumpProperties::builder()
+                            .position(2.0)
+                            .reflection(0.5)
+                            .build(),
+                    ),
+                ])
+                .build(),
+        )
+        .position
+        .var_writer("ZStellung_C");
 }

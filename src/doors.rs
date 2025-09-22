@@ -152,19 +152,18 @@ pub fn doors() -> DoorsState {
         .map(|v| v.control.warning.clone())
         .collect();
 
-    let outside_warning_relais =
-        Shared::<bool>::or_vec(warnings_1_3.iter().map(|v| v.clone()).collect())
-            .and(
-                &state
-                    .door_1_override
-                    .process(|&v| v == DoorControlMode::Automatic),
-            )
-            .blink_relay(
-                BlinkRelayProperties::builder()
-                    .interval(0.777)
-                    .on_time(0.388)
-                    .build(),
-            );
+    let outside_warning_relais = Shared::<bool>::or_vec(warnings_1_3.to_vec())
+        .and(
+            &state
+                .door_1_override
+                .process(|&v| v == DoorControlMode::Automatic),
+        )
+        .blink_relay(
+            BlinkRelayProperties::builder()
+                .interval(0.777)
+                .on_time(0.388)
+                .build(),
+        );
 
     warnings_1_3.iter().enumerate().for_each(|(i, v)| {
         v.and(&outside_warning_relais)

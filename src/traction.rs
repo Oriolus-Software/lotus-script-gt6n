@@ -22,9 +22,10 @@ const VMAX_BACK: f32 = 15.0 / 3.6;
 const V_EBRAKE_LIMIT: f32 = 5.0 / 3.6;
 const MAXBRAKEFORCE_N: f32 = 16_000.0;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub enum TractionDirection {
     Forward,
+    #[default]
     Neutral,
     Backward,
 }
@@ -85,7 +86,7 @@ pub fn add_traction() -> TractionState {
         mg_relay
             .delay_relay(0.14, 0.14)
             .to_float()
-            .multiply(&voltage)
+            .multiply_shared(&voltage)
             .rail_brake(
                 RailBrakeProperties::builder()
                     .reference_force(128_000.0)

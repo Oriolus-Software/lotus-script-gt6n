@@ -20,6 +20,7 @@ pub struct Cockpit {
     pub schloss: Shared<bool>,
     pub richtungswender: Shared<RichtungswenderState>,
     pub sollwertgeber: Shared<f32>,
+    pub sifa_sollwertgeber: Shared<bool>,
     pub pantograph: Shared<ButtonTwoSidedSpringLoadedState>,
     pub hauptschalter: Shared<ButtonTwoSidedSpringLoadedState>,
     pub federspeicher_overwrite: Shared<ButtonInOutState>,
@@ -68,6 +69,17 @@ pub struct CockpitRear {
 }
 
 pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
+    let gt6n_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
+        std_button(
+            ButtonProperties::builder()
+                .input_event(InputEvent::new(input_event, 0))
+                .animation_var(animation_var)
+                .sound_on("Snd_CP_A_BtnDn")
+                .sound_off("Snd_CP_A_BtnUp")
+                .build(),
+        )
+    };
+
     let rw_lock = Shared::new(false);
     let schloss_lock = Shared::new(false);
 
@@ -76,7 +88,7 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
             .input_event_on(InputEvent::new("Key_Reverser_L", 0))
             .input_event_off(InputEvent::new("Key_Reverser_R", 0))
             .animation_var("Schluessel_A_RW_turned")
-            .standard_position(false)
+            .standard_position(true)
             .locked(schloss_lock.clone())
             .build(),
     );
@@ -124,23 +136,12 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
 
     let lm_check = Shared::new(false);
 
-    let gt6n_button = |input_event: &str, animation_var: &str| -> Shared<bool> {
-        std_button(
-            ButtonProperties::builder()
-                .input_event(InputEvent::new(input_event, 0))
-                .animation_var(animation_var)
-                .sound_on("Snd_CP_A_BtnDn")
-                .sound_off("Snd_CP_A_BtnUp")
-                .build(),
-        )
-    };
-
     let std_lm = |variable: &str| -> Shared<bool> {
         let value = Shared::default();
         value
             .or(&lm_check)
             .to_float()
-            .multiply(&voltage_r)
+            .multiply_shared(&voltage_r)
             .var_writer(variable);
         // value.set(false);
         value
@@ -149,6 +150,16 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
     let state = Cockpit {
         richtungswender,
         sollwertgeber,
+
+        sifa_sollwertgeber: std_button(
+            ButtonProperties::builder()
+                .input_event(InputEvent::new("HoldToRun", 0))
+                .animation_var("A_CP_Sollwertgeber_SiFa")
+                .sound_on("Snd_CP_A_SWG_SiFa_Dn")
+                .sound_off("Snd_CP_A_SWG_SiFa_Up")
+                .build(),
+        ),
+
         lm_check: lm_check.clone(),
 
         sanden: gt6n_button("Sanding", "A_CP_TS_Sanden"),
@@ -203,6 +214,20 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("IndicatorToLeft", 0))
                 .input_event_plus(InputEvent::new("IndicatorToRight", 0))
+                .input_events_set(vec![
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("IndicatorLeft", 0))
+                        .set(BlinkerSwitch::Left)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("IndicatorOff", 0))
+                        .set(BlinkerSwitch::Off)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("IndicatorRight", 0))
+                        .set(BlinkerSwitch::Right)
+                        .build(),
+                ])
                 .position_min(BlinkerSwitch::Left)
                 .position_max(BlinkerSwitch::Right)
                 .animation_var("A_CP_SW_Blinker")
@@ -224,13 +249,21 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
             SwitchProperties::builder()
                 .input_event_toggle(InputEvent::new("CabinLightToggle", 0))
                 .animation_var("A_CP_SW_Innenbel")
-                .sound_switch("Snd_CP_A_Switch")
+                .sound_switch_off("Snd_CP_A_Switch")
+                .sound_switch_on("Snd_CP_A_Switch")
                 .build(),
         ),
         beleuchtung_fahrerraum: step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("CockpitLightMinus", 0))
                 .input_event_plus(InputEvent::new("CockpitLightPlus", 0))
+                .input_events_set(vec![
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("CockpitLightToggle", 0))
+                        .set(2)
+                        .set_else(0)
+                        .build(),
+                ])
                 .position_min(0)
                 .position_max(2)
                 .animation_var("A_CP_SW_Fstbel")
@@ -244,6 +277,16 @@ pub fn add_cockpit(voltage_r: Shared<f32>) -> Cockpit {
             StepSwitchProperties::builder()
                 .input_event_plus(InputEvent::new("DoorsPlus", 0))
                 .input_event_minus(InputEvent::new("DoorsMinus", 0))
+                .input_events_set(vec![
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("DoorAllOpen", 0))
+                        .set(DoorSwitch::Open)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("DoorAllClose", 0))
+                        .set(DoorSwitch::Closed)
+                        .build(),
+                ])
                 .position_min(DoorSwitch::Tuer1)
                 .position_max(DoorSwitch::Open)
                 .position_min_is_springloaded(true)
@@ -330,7 +373,10 @@ pub fn add_cockpit_rear(voltage_r: Shared<f32>) -> CockpitRear {
 
     let std_lm = |variable: &str| -> Shared<bool> {
         let value = Shared::default();
-        value.to_float().multiply(&voltage_r).var_writer(variable);
+        value
+            .to_float()
+            .multiply_shared(&voltage_r)
+            .var_writer(variable);
         // value.set(false);
         value
     };
@@ -381,6 +427,16 @@ pub fn add_cockpit_rear(voltage_r: Shared<f32>) -> CockpitRear {
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("IndicatorToLeft", 1))
                 .input_event_plus(InputEvent::new("IndicatorToRight", 1))
+                .input_events_set(vec![
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("IndicatorLeft", 1))
+                        .set(BlinkerSwitch::Left)
+                        .build(),
+                    StepSwitchInputToggle::builder()
+                        .input_event(InputEvent::new("IndicatorRight", 1))
+                        .set(BlinkerSwitch::Right)
+                        .build(),
+                ])
                 .position_min(BlinkerSwitch::Left)
                 .position_max(BlinkerSwitch::Right)
                 .animation_var("B_CP_SW_Blinker")

@@ -1,13 +1,18 @@
+use lotus_extra::messages;
+use lotus_rt::{spawn, wait};
 use lotus_rt_extra::messages::process_message_rt_handler;
 use lotus_script::{
     Script,
-    graphics::textures::{Texture, TextureAction, TextureCreationOptions},
+    content::ContentId,
+    graphics::textures::{AlphaMode, TextureAction, TextureCreationOptions},
     log,
     math::UVec2,
     message::Coupling,
+    prelude::Texture,
     script,
+    time::{self},
     var::{get_var, set_var},
-    vehicle::{Axle, RailQuality, acceleration_vs_ground},
+    vehicle::{Axle, RailQuality},
 };
 
 use crate::systems_interface::Interface;
@@ -16,6 +21,7 @@ pub mod cockpit;
 pub mod cockpit_types;
 pub mod couplings;
 pub mod doors;
+pub mod examples;
 pub mod input;
 pub mod lights;
 pub mod misc;
@@ -28,165 +34,57 @@ script!(ScriptGt6n);
 pub struct ScriptGt6n {
     test_tex: Option<Texture>,
     interface: Interface,
+    written_tex: bool,
 }
 
 impl Default for ScriptGt6n {
     fn default() -> Self {
+        log::info!("init -----------------------------");
+
+        set_var("veh_number", "2143");
+
+        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Front));
+        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Rear));
+
         Self {
             test_tex: None,
             interface: Interface::default(),
-            // test_message_shared: Shared::new(MsgVehNumber {
-            //     value: "".to_string(),
-            // }),
+            written_tex: false,
         }
     }
 }
 
 impl Script for ScriptGt6n {
     fn init(&mut self) {
-        log::info!("init -----------------------------");
-
-        if Axle::get(0, 0).is_err() {
-            log::error!("Axle 0, 0 not found");
-        };
-        if Axle::get(0, 1).is_err() {
-            log::error!("Axle 0, 1 not found");
-        };
-
-        if Axle::get(0, 2).is_err() {
-            log::error!("Axle 0, 2 not found");
-        };
-        if acceleration_vs_ground().is_nan() {
-            log::error!("Acceleration not found");
-        };
-
-        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Front));
-        log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Rear));
-
-        self.interface = Interface::default();
-
-        //-----------------------------------------
-
-        // let vardiewirunbedingtbrauchen = ContentId {
-        //     user_id: 5748540,
-        //     sub_id: 110000,
-        //     version: 0.0,
-        // };
-
-        // vardiewirunbedingtbrauchen.set("TexID_veh_number_white");
-
-        //-----------------------------------------
-
-        // let mut source_t = Texture::create(TextureCreationOptions {
-        //     width: 256,
-        //     height: 256,
-        //     data: None,
-        // });
-
-        // source_t.add_action(TextureAction::DrawRect {
-        //     start: UVec2 { x: 64, y: 64 },
-        //     end: UVec2 { x: 192, y: 192 },
-        //     color: lotus_script::graphics::Color {
-        //         r: 0,
-        //         g: 0,
-        //         b: 255,
-        //         a: 255,
-        //     },
-        // });
-
-        // source_t.flush();
-
-        // source_t.apply_to("TexID_veh_number_white");
+        test_message();
 
         let mut t = Texture::create(TextureCreationOptions {
-            width: 64,
-            height: 64,
+            width: 256,
+            height: 256,
             data: None,
+            mipmaps: true,
         });
 
         //-----------------------------------------
 
         t.apply_to("TexID_veh_number_black");
 
-        t.add_action(TextureAction::DrawRect {
-            start: UVec2 { x: 1, y: 1 },
-            end: UVec2 { x: 63, y: 63 },
-            color: lotus_script::graphics::Color {
-                r: 255,
-                g: 20,
-                b: 0,
-                a: 255,
-            },
-        });
-
-        // t.flush();
-
-        // t.add_action(TextureAction::DrawText {
-        //     font: ContentId {
-        //         user_id: 1000,
-        //         sub_id: 210,
-        //     },
-        //     text: "Hallo".to_string(),
-        //     top_left: UVec2 { x: 20, y: 20 },
-        //     letter_spacing: 0,
-
-        //     full_color: Some(lotus_script::graphics::Color {
-        //         r: 20,
-        //         g: 20,
-        //         b: 255,
-        //         a: 255,
-        //     }),
-        //     alpha_mode: AlphaMode::Blend,
-        // });
-
-        // t.draw_texture(
-        //     &source_t,
-        //     DrawTextureOpts {
-        //         source_rect: Some(lotus_script::math::Rectangle {
-        //             start: (UVec2 { x: 62, y: 62 }),
-        //             end: (UVec2 { x: 194, y: 194 }),
-        //         }),
-        //         target_rect: Some(lotus_script::math::Rectangle {
-        //             start: (UVec2 { x: 50, y: 50 }),
-        //             end: (UVec2 { x: 100, y: 100 }),
-        //         }),
-        //     },
-        // );
-
         //-----------------------------------------
 
         self.test_tex = Some(t);
 
-        // self.source_test_tex = Some(source_t);
-
         //-----------------------------------------
+
+        log::info!(
+            "cockpit index: {:?}, module_slot_index: {:?}, module_slot_in_class_index: {:?}",
+            lotus_script::module::module_slot_cockpit_index(),
+            lotus_script::module::module_slot_index(),
+            lotus_script::module::module_slot_index_in_class_group(),
+        );
     }
 
-    // fn actions() -> Vec<RegisterAction> {
-    //     Vec::new()
-    // }
-
     fn tick(&mut self) {
-        // if let Some(f) = lotus_script::font::text_len(
-        //     ContentId {
-        //         user_id: 1000,
-        //         sub_id: 210,
-        //         version: 0.0,
-        //     },
-        //     "Hallo",
-        //     0,
-        // ) {
-        //     log::info!("{:?}", f);
-        // }
-
-        // process_inputs();
-
         lotus_rt::tick();
-
-        // self.traction
-        //     .apply(self.cockpit.target_traction(), self.cockpit.target_brake());
-
-        // self.timer += delta();
 
         // set_var("Snd_Traction_A", get_var::<f32>("M_Axle_N_0_1").abs());
         // set_var("Snd_Traction_C", get_var::<f32>("M_Axle_N_1_1").abs());
@@ -201,46 +99,79 @@ impl Script for ScriptGt6n {
         set_var("v_Axle_mps_2_0_abs", get_var::<f32>("v_Axle_mps_2_0").abs());
         set_var("v_Axle_mps_2_1_abs", get_var::<f32>("v_Axle_mps_2_1").abs());
 
+        // log::info!("B: {}", get_var::<f32>("ZStellung_B"));
+
         weichensounds();
 
-        // if get_var::<f32>("A_CP_SW_Wischer") > 0.5 {
-        //     send_message(
-        //         if get_var::<f32>("A_CP_SW_Wischer") > 1.5 {
-        //             &BlinkerState::On
-        //         } else {
-        //             &BlinkerState::Off
-        //         },
-        //         [MessageTarget::Broadcast {
-        //             across_couplings: false,
-        //             include_self: true,
-        //         }],
-        //     )
-        // };
+        if !self.written_tex {
+            self.test_tex
+                .as_mut()
+                .unwrap()
+                .add_action(TextureAction::DrawText {
+                    font: ContentId {
+                        user_id: 3473612,
+                        sub_id: 893621505,
+                    },
+                    text: "Hallo".to_string(),
+                    top_left: UVec2 { x: 20, y: 20 },
+                    letter_spacing: 0,
+                    full_color: Some(lotus_script::graphics::Color {
+                        r: 20,
+                        g: 20,
+                        b: 255,
+                        a: 255,
+                    }),
+                    alpha_mode: AlphaMode::Opaque,
+                });
+            self.written_tex = true;
+        }
     }
 
     fn on_message(&mut self, msg: lotus_script::message::Message) {
-        // msg.handle(|m: BlinkerState| {
-        //     match m {
-        //         BlinkerState::Off => {
-        //             set_var("BlinkerRight", &0.0);
-        //         }
-        //         BlinkerState::On => {
-        //             set_var("BlinkerRight", &1.0);
-        //         }
-        //     };
-        //     Ok(())
-        // })
-        // .ok();
-        // msg.handle(|m| self.test_message_shared.message_handler(m));
-        process_message_rt_handler(msg);
+        log::info!("Message: {:?}", msg);
+        // process_message_rt_handler(msg);
     }
 }
 
-fn weichensounds() {
-    let (quality_a, quality_b) = (
-        Axle::get(0, 0).unwrap().rail_quality(),
-        Axle::get(0, 1).unwrap().rail_quality(),
+fn test_message() {
+    // if !Coupling::is_coupled(&Coupling::Front) {
+    //     lotus_script::prelude::send_message(
+    //         &messages::Light(20.0),
+    //         lotus_script::message::MessageTarget::Broadcast {
+    //             across_couplings: false,
+    //             include_self: false,
+    //         },
+    //     );
+    // }
+
+    lotus_script::prelude::send_message(
+        &messages::Batteryvoltage::On(1.0),
+        lotus_script::message::MessageTarget::Broadcast {
+            across_couplings: true,
+            include_self: true,
+        },
     );
+
+    lotus_script::prelude::send_message(
+        &messages::PowerSignal::On {
+            quickstart: false,
+            cabin_id: messages::PowerSignalCabin::ACab,
+        },
+        lotus_script::message::MessageTarget::Broadcast {
+            across_couplings: true,
+            include_self: true,
+        },
+    );
+}
+
+fn weichensounds() {
+    let (Ok(axle_0), Ok(axle_1)) = (Axle::get(0, 0), Axle::get(0, 1)) else {
+        log::error!("Axle 0, 0 or 0, 1 not found");
+        return;
+    };
+
+    let (quality_a, quality_b) = (axle_0.rail_quality(), axle_1.rail_quality());
+
     if quality_a == RailQuality::FroggySmooth
         || quality_b == RailQuality::FroggySmooth
         || quality_a == RailQuality::FroggyRough

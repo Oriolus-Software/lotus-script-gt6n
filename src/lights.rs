@@ -1,9 +1,9 @@
-use lotus_extra::messages::std_messages::MsgLight;
+use lotus_extra::messages;
 use lotus_rt_extra::{
     shared::Shared, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
     vehicle_systems::BlinkerState,
 };
-use lotus_script::prelude::MessageTarget;
+use lotus_script::{message::Coupling, prelude::MessageTarget};
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;
@@ -58,9 +58,10 @@ pub fn add_lights() -> LightState {
             .stand
             .relay(&lights.voltage)
             .var_writer("Standlicht")
-            .process(|&value| MsgLight { value })
+            .filter_only_on_change()
+            .process(|&value| messages::Light(value * 20.0))
             .send_message(MessageTarget::Broadcast {
-                across_couplings: false,
+                across_couplings: true,
                 include_self: false,
             });
 

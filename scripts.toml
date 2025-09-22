@@ -1,0 +1,4 @@
+[[script]]
+user_id = 1000
+sub_id = 31997818
+toolchain = "cargo"
