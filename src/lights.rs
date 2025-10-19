@@ -1,4 +1,5 @@
 use lotus_extra::messages;
+use lotus_rt_extra::send;
 use lotus_rt_extra::{
     shared::Shared, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
     vehicle_systems::BlinkerState,
@@ -54,15 +55,30 @@ pub fn add_lights() -> LightState {
             .relay(&lights.voltage)
             .var_writer("Fahrgastraumbeleuchtung");
 
-        lights
+        let a = vec![1];
+
+        let b = a.iter();
+
+        let c = b.copied(); //map(|x| *x);
+
+        let d = c.map(|x| x + 1);
+
+        let l = lights
             .stand
             .relay(&lights.voltage)
             .var_writer("Standlicht")
-            .filter_only_on_change()
-            .process(|&value| messages::Light(value * 20.0))
+            .filter_only_on_change();
+
+        // l.map_with_from::<messages::std::Light>()
+        //     .send_message(MessageTarget::Broadcast {
+        //         across_couplings: false,
+        //         include_self: true,
+        //     });
+
+        l.process::<messages::std::Light>(From::from)
             .send_message(MessageTarget::Broadcast {
-                across_couplings: true,
-                include_self: false,
+                across_couplings: false,
+                include_self: true,
             });
 
         lights

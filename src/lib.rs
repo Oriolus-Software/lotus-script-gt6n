@@ -1,12 +1,12 @@
 use lotus_extra::messages;
 use lotus_rt::{spawn, wait};
-use lotus_rt_extra::messages::process_message_rt_handler;
+use lotus_rt_extra::{VehicleBackbone, messages::process_message_rt_handler};
 use lotus_script::{
     Script,
     content::ContentId,
     graphics::textures::{AlphaMode, TextureAction, TextureCreationOptions},
     log,
-    math::UVec2,
+    math::IVec2,
     message::Coupling,
     prelude::Texture,
     script,
@@ -35,6 +35,7 @@ pub struct ScriptGt6n {
     test_tex: Option<Texture>,
     interface: Interface,
     written_tex: bool,
+    backbone: VehicleBackbone,
 }
 
 impl Default for ScriptGt6n {
@@ -48,6 +49,7 @@ impl Default for ScriptGt6n {
 
         Self {
             test_tex: None,
+            backbone: VehicleBackbone::default(),
             interface: Interface::default(),
             written_tex: false,
         }
@@ -68,6 +70,7 @@ impl Script for ScriptGt6n {
         //-----------------------------------------
 
         t.apply_to("TexID_veh_number_black");
+        t.expose("Wagennummer");
 
         //-----------------------------------------
 
@@ -113,7 +116,7 @@ impl Script for ScriptGt6n {
                         sub_id: 893621505,
                     },
                     text: "Hallo".to_string(),
-                    top_left: UVec2 { x: 20, y: 20 },
+                    top_left: IVec2 { x: 20, y: 20 },
                     letter_spacing: 0,
                     full_color: Some(lotus_script::graphics::Color {
                         r: 20,
@@ -122,8 +125,15 @@ impl Script for ScriptGt6n {
                         a: 255,
                     }),
                     alpha_mode: AlphaMode::Opaque,
+                    target_rect: None,
                 });
             self.written_tex = true;
+        }
+
+        let action = lotus_script::action::state("Lightcheck");
+
+        if action.kind.is_just_pressed() {
+            log::info!("Lightcheck pressed: {:?}", action);
         }
     }
 
@@ -145,7 +155,7 @@ fn test_message() {
     // }
 
     lotus_script::prelude::send_message(
-        &messages::Batteryvoltage::On(1.0),
+        &messages::std::Batteryvoltage::On(1.0),
         lotus_script::message::MessageTarget::Broadcast {
             across_couplings: true,
             include_self: true,
@@ -153,9 +163,9 @@ fn test_message() {
     );
 
     lotus_script::prelude::send_message(
-        &messages::PowerSignal::On {
+        &messages::std::PowerSignalState::On {
             quickstart: false,
-            cabin_id: messages::PowerSignalCabin::ACab,
+            cabin_id: messages::std::PowerSignalCabin::ACab,
         },
         lotus_script::message::MessageTarget::Broadcast {
             across_couplings: true,
