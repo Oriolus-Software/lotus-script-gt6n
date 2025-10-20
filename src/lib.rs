@@ -1,6 +1,5 @@
 use lotus_extra::messages;
-use lotus_rt::{spawn, wait};
-use lotus_rt_extra::{VehicleBackbone, messages::process_message_rt_handler};
+use lotus_rt_extra::backbone::VehicleBackbone;
 use lotus_script::{
     Script,
     content::ContentId,
@@ -10,30 +9,32 @@ use lotus_script::{
     message::Coupling,
     prelude::Texture,
     script,
-    time::{self},
     var::{get_var, set_var},
     vehicle::{Axle, RailQuality},
 };
 
-use crate::systems_interface::Interface;
+use crate::cockpit::add_cockpit;
 
+// use crate::systems_interface::Interface;
+
+pub mod backbone_types;
 pub mod cockpit;
 pub mod cockpit_types;
-pub mod couplings;
-pub mod doors;
-pub mod examples;
-pub mod input;
-pub mod lights;
-pub mod misc;
-pub mod passenger_elements;
-pub mod systems_interface;
-pub mod traction;
+// pub mod couplings;
+// pub mod doors;
+// pub mod examples;
+// pub mod input;
+// pub mod lights;
+// pub mod misc;
+// pub mod passenger_elements;
+// pub mod systems_interface;
+// pub mod traction;
 
 script!(ScriptGt6n);
 
 pub struct ScriptGt6n {
     test_tex: Option<Texture>,
-    interface: Interface,
+    // interface: Interface,
     written_tex: bool,
     backbone: VehicleBackbone,
 }
@@ -47,12 +48,16 @@ impl Default for ScriptGt6n {
         log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Front));
         log::info!("is_coupled: {}", Coupling::is_coupled(&Coupling::Rear));
 
-        Self {
+        let mut s = Self {
             test_tex: None,
             backbone: VehicleBackbone::default(),
-            interface: Interface::default(),
+            // interface: Interface::default(),
             written_tex: false,
-        }
+        };
+
+        add_cockpit(&mut s.backbone);
+
+        s
     }
 }
 
