@@ -24,6 +24,7 @@ lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-featu
 lotus-rt-extra = { path = "../lotus-rt-extra" }
 bon = "3"
 serde = { version = "1.0.219", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
 
 [profile.release]
 opt-level = 3
