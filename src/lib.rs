@@ -13,7 +13,8 @@ use lotus_script::{
     vehicle::{Axle, RailQuality},
 };
 
-use crate::cockpit::add_cockpit;
+use crate::cockpit::cockpit;
+use crate::doors::doors;
 
 // use crate::systems_interface::Interface;
 
@@ -21,7 +22,7 @@ pub mod backbone_types;
 pub mod cockpit;
 pub mod cockpit_types;
 // pub mod couplings;
-// pub mod doors;
+pub mod doors;
 // pub mod examples;
 // pub mod input;
 // pub mod lights;
@@ -55,7 +56,8 @@ impl Default for ScriptGt6n {
             written_tex: false,
         };
 
-        add_cockpit(&mut s.backbone);
+        doors(&mut s.backbone);
+        cockpit(&mut s.backbone);
 
         s
     }

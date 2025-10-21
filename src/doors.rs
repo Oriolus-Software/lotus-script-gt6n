@@ -1,4 +1,5 @@
 use lotus_rt_extra::{
+    backbone::{ObserverBackbone, VehicleBackbone},
     doors::{
         DoorControlMode, DoorControlProperties, DoorControlState,
         DoorWarningOutsideRelayWithStopOnSpeedProperties, ElectricSlidingPlugDoorPairPositionState,
@@ -6,8 +7,12 @@ use lotus_rt_extra::{
         ElectricSlidingPlugDoorPairTarget, door_control,
         door_warning_outside_relay_with_stop_on_speed,
     },
-    shared::Shared,
+    observer::{Observer, ObserverVec},
     timers::BlinkRelayProperties,
+};
+
+use crate::backbone_types::{
+    Door1Force, DoorRequest, DoorsReleased, OverrideNoWarning, SystemActive, VehicleSpeed,
 };
 
 const PLUG_RADIUS: f32 = 0.06;
@@ -19,33 +24,34 @@ const CLOSE_END_SPEED: f32 = 0.1;
 const CLOSE_START_END_CHANGE_POSITION: f32 = 0.2;
 const TRACTION_STIFTNESS: f32 = 4.0;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DoorsState {
     pub doors_with_controller: Vec<DoorsWithController>,
-    pub released: Shared<bool>,
-    pub requests: Vec<Shared<bool>>,
-    pub vehicle_speed: Shared<f32>,
-    pub door_1_override: Shared<DoorControlMode>,
-    pub override_no_warning: Shared<bool>,
-    pub all_closed: Shared<bool>,
+    pub released: Observer<bool>,
+    pub requests: Vec<Observer<bool>>,
+    pub vehicle_speed: Observer<f32>,
+    pub door_1_override: Observer<DoorControlMode>,
+    pub override_no_warning: Observer<bool>,
+    pub all_closed: Observer<bool>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DoorsWithController {
     pub door: ElectricSlidingPlugDoorPairState,
     pub control: DoorControlState,
-    pub closed: Shared<bool>,
+    pub closed: Observer<bool>,
 }
 
-pub fn doors() -> DoorsState {
-    let system_active = Shared::new(true);
+pub fn doors(backbone: &mut VehicleBackbone) {
+    let system_active = backbone.add_and_get_new_observer(SystemActive);
+    let released = backbone.add_and_get_new_observer(DoorsReleased);
+    let door_1_force = backbone.add_and_get_new_observer(Door1Force);
 
-    let released = Shared::new(false);
-    let door_1_force = Shared::new(DoorControlMode::default());
+    let mut requests = vec![];
 
-    let requests: Vec<_> = std::iter::repeat_with(|| Shared::new(false))
-        .take(4)
-        .collect();
+    for i in 0..4 {
+        requests.push(backbone.add_and_get_new_observer(DoorRequest::DoorLeft(i as i8)));
+    }
 
     let door_with_controller =
         |door_number: usize,
@@ -53,8 +59,8 @@ pub fn doors() -> DoorsState {
          close_start_speed: f32,
          reflection_open: f32,
          reflection_close: f32,
-         door_1_force: Option<Shared<DoorControlMode>>| {
-            let door_target = Shared::new(ElectricSlidingPlugDoorPairTarget::NoEnergy);
+         door_1_force: Option<Observer<DoorControlMode>>| {
+            let mut door_target = Observer::<ElectricSlidingPlugDoorPairTarget>::default();
 
             let door_prop = ElectricSlidingPlugDoorPairProperties::builder()
                 .plug_radius(PLUG_RADIUS)
@@ -79,7 +85,7 @@ pub fn doors() -> DoorsState {
                 .variable_y_blade_b(format!("Door_{}_2", door_number + 1))
                 .build();
 
-            let door = door_target.electric_sliding_plug_door_pair(door_prop);
+            let mut door = door_target.electric_sliding_plug_door_pair(door_prop);
 
             let control_properties = DoorControlProperties::builder()
                 .request_time(6.0)
@@ -89,19 +95,19 @@ pub fn doors() -> DoorsState {
                 .set_released(released.clone())
                 .set_door_closed(door.position.clone());
 
-            let control_properties = if let Some(force) = door_1_force {
+            let mut control_properties = if let Some(force) = door_1_force {
                 control_properties.set_force(force.clone()).build()
             } else {
                 control_properties.build()
             };
 
-            let control = door_control(control_properties);
+            let mut control = door_control(&mut control_properties);
 
-            control.door_target.forward(&door_target);
+            control.door_target.write_to(&door_target);
 
             let closed = door
                 .position
-                .process(|v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed);
+                .map(|v| *v == ElectricSlidingPlugDoorPairPositionState::FullyClosed);
 
             DoorsWithController {
                 door,
@@ -117,26 +123,27 @@ pub fn doors() -> DoorsState {
         door_with_controller(3, 0.58, 0.48, 0.03, 0.05, None),
     ];
 
-    let state = DoorsState {
+    let mut state = DoorsState {
         doors_with_controller: doors_with_controller.clone(),
-        vehicle_speed: Shared::new(0.0),
+        vehicle_speed: backbone.add_and_get_new_observer(VehicleSpeed),
         released,
         requests,
         door_1_override: door_1_force,
-        override_no_warning: Shared::new(false),
-        all_closed: Shared::<bool>::and_vec(
+        override_no_warning: backbone.add_and_get_new_observer(OverrideNoWarning),
+        all_closed: ObserverVec::<bool>::new(
             doors_with_controller
                 .clone()
                 .iter()
                 .map(|v| v.closed.clone())
-                .collect(),
-        ),
+                .collect::<Vec<_>>(),
+        )
+        .all(|v| v),
     };
 
     state
         .door_1_override
-        .process(|&v| v == DoorControlMode::Automatic)
-        .and(&state.doors_with_controller[0].control.warning)
+        .map(|v| *v == DoorControlMode::Automatic)
+        .and_observer(&mut state.doors_with_controller[0].control.warning)
         .blink_relay(
             BlinkRelayProperties::builder()
                 .interval(0.777)
@@ -152,11 +159,12 @@ pub fn doors() -> DoorsState {
         .map(|v| v.control.warning.clone())
         .collect();
 
-    let outside_warning_relais = Shared::<bool>::or_vec(warnings_1_3.to_vec())
-        .and(
-            &state
+    let mut outside_warning_relais = ObserverVec::<bool>::new(warnings_1_3.clone())
+        .any(|v| v)
+        .and_observer(
+            &mut state
                 .door_1_override
-                .process(|&v| v == DoorControlMode::Automatic),
+                .map(|v| *v == DoorControlMode::Automatic),
         )
         .blink_relay(
             BlinkRelayProperties::builder()
@@ -166,21 +174,23 @@ pub fn doors() -> DoorsState {
         );
 
     warnings_1_3.iter().enumerate().for_each(|(i, v)| {
-        v.and(&outside_warning_relais)
+        v.clone()
+            .and_observer(&mut outside_warning_relais)
             .trigger_sound(format!("Snd_Door_{}_Warning", i + 1))
             .to_float()
             .var_writer(format!("Door_{}_WarnlightI", i + 1));
     });
 
-    let all_doors_closed = Shared::<bool>::and_vec(
+    let all_doors_closed = ObserverVec::<bool>::new(
         state
             .doors_with_controller
             .iter()
             .map(|v| v.closed.clone())
-            .collect(),
-    );
+            .collect::<Vec<_>>(),
+    )
+    .all(|v| v);
 
-    let warning_outside_relay = door_warning_outside_relay_with_stop_on_speed(
+    let mut warning_outside_relay = door_warning_outside_relay_with_stop_on_speed(
         DoorWarningOutsideRelayWithStopOnSpeedProperties::builder()
             .timer_after_closed(30.0)
             .max_speed(3.0 / 3.6)
@@ -192,7 +202,7 @@ pub fn doors() -> DoorsState {
 
     warning_outside_relay.var_writer("Snd_Relais_Doorwarn");
 
-    let outside_warning_blinker_relais = warning_outside_relay.blink_relay(
+    let mut outside_warning_blinker_relais = warning_outside_relay.blink_relay(
         BlinkRelayProperties::builder()
             .interval(0.393)
             .on_time(0.196)
@@ -203,8 +213,6 @@ pub fn doors() -> DoorsState {
         .to_float()
         .var_writer("Door_1_WarnlightO")
         .var_writer("Door_234_WarnlightO");
-
-    state
 }
 
 #[derive(Clone, Debug)]
