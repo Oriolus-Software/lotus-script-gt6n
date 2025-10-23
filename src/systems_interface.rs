@@ -1,525 +1,342 @@
-use lotus_rt::{spawn, wait};
+use lotus_extra::types::CockpitSide;
 use lotus_rt_extra::{
+    backbone::VehicleBackbone,
+    cockpit_simple::ButtonInOutState,
     cockpit_special::{TokenProperties, TokenSlot, token},
     doors::DoorControlMode,
     input::InputEvent,
-    physic::{InertionSliderBumpProperties, InertionSliderProperties, InertionSliderState},
-    shared::{Shared, multiple_on_change},
+    observer::changed,
     vehicle_systems::BlinkerState,
 };
-use lotus_script::var::set_var;
 
 use crate::{
-    cockpit::{Cockpit, CockpitRear},
-    cockpit_types::{
-        BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
-    },
-    doors::DoorsState,
-    lights::LightState,
-    misc::MiscState,
-    passenger_elements::PassengerElementsState,
-    traction::{TractionDirection, TractionState},
+    backbone_types,
+    cockpit_types::{BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState},
 };
 
-#[derive(Debug, Clone)]
-pub struct SystemStates {
-    pub cockpit: Cockpit,
-    pub cockpit_rear: CockpitRear,
-    pub passenger: PassengerElementsState,
-    pub traction: TractionState,
-    pub lights: LightState,
-    pub misc: MiscState,
-    pub doors: DoorsState,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ActiveCockpit {
+    #[default]
+    Off,
+    ADrive,
+    AActive,
+    B,
 }
 
-#[derive(Debug, Clone, Default)]
-struct InterfaceState {
-    cockpit_a_active: Shared<bool>,
-    cockpit_a_drive: Shared<bool>,
-    cockpit_b: Shared<bool>,
-    active: Shared<bool>,
-    drive: Shared<bool>,
-}
-
-#[derive(Clone)]
-pub struct Interface {
-    systems: SystemStates,
-    state: InterfaceState,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Schluessel {
     Vorne,
     Hinten,
 }
 
-impl Default for Interface {
-    fn default() -> Self {
-        let voltage_r = Shared::<f32>::new(1.0);
+fn cockpit(backbone: &mut VehicleBackbone) {
+    let active_cockpit = backbone.create_observer(backbone_types::ActiveCockpit);
 
-        let sys = systems_interface(SystemStates {
-            cockpit: crate::cockpit::add_cockpit(voltage_r.clone()),
-            cockpit_rear: crate::cockpit::add_cockpit_rear(voltage_r.clone()),
-            passenger: crate::passenger_elements::passenger_elements(),
-            traction: crate::traction::add_traction(),
-            lights: crate::lights::add_lights(),
-            misc: crate::misc::add_misc(),
-            doors: crate::doors::doors(),
-        });
-
-        set_var("Coupling_A_vis", true);
-        set_var("Coupling_B_vis", true);
-
-        sys
-    }
-}
-
-pub fn systems_interface(channels: SystemStates) -> Interface {
-    let channels_clone = channels.clone();
-
-    let cockpit_a_active = channels_clone
-        .cockpit
-        .richtungswender
-        .process(|r| !matches!(r, RichtungswenderState::O));
-    let cockpit_a_drive = channels_clone
-        .cockpit
-        .richtungswender
-        .process(|r| matches!(r, RichtungswenderState::V | RichtungswenderState::R));
-    let cockpit_b = channels_clone.cockpit_rear.schloss.clone();
-
-    token::<Schluessel>(
-        TokenProperties::builder()
-            .standard_position(Schluessel::Vorne)
-            .slots(vec![
-                TokenSlot::builder()
-                    .token(Schluessel::Vorne)
-                    .visibility_var("Schluessel_A_RW")
-                    .input_event_set(InputEvent::new("InsertKey_Reverser", 0))
-                    .input_event_reset(InputEvent::new("Key_Reverser_R", 0))
-                    .sound_set("Snd_CP_A_KeyIn")
-                    .sound_reset("Snd_CP_A_KeyOut")
-                    .locked_deactivate(channels_clone.cockpit.schloss.delay_relay(0.0, 0.1).clone())
-                    .build(),
-                TokenSlot::builder()
-                    .token(Schluessel::Hinten)
-                    .visibility_var("Schluessel_H")
-                    .input_event_set(InputEvent::new("InsertKey_Reverser", 1))
-                    .input_event_reset(InputEvent::new("Key_Reverser_R", 1))
-                    .sound_set("Snd_CP_B_KeyIn")
-                    .sound_reset("Snd_CP_B_KeyOut")
-                    .locked_deactivate(
-                        channels_clone
-                            .cockpit_rear
-                            .schloss
-                            .delay_relay(0.0, 0.1)
-                            .clone(),
-                    )
-                    .build(),
-            ])
-            .build(),
-    );
-
-    let interface = Interface {
-        systems: channels,
-        state: InterfaceState {
-            cockpit_a_active: cockpit_a_active.clone(),
-            cockpit_a_drive: cockpit_a_drive.clone(),
-            cockpit_b: cockpit_b.clone(),
-            active: cockpit_a_active.or(&cockpit_b.clone()),
-            drive: cockpit_a_drive.or(&cockpit_b.clone()),
-        },
-    };
-
-    interface.systems.lights.voltage.set(1.0);
-
-    traction_control(&interface);
-
-    outside_lights(&interface);
-
-    blinker_lights(&interface);
-
-    inside_lights(&interface);
-
-    // Cockpit ---------------------------------------
-
-    interface
-        .systems
-        .cockpit
-        // .klingel
-        .mg_bremse
-        .or(&interface.systems.cockpit.klingel)
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.misc.klingel);
-
-    interface
-        .systems
-        .cockpit
-        .lightcheck
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.cockpit.lm_check);
-
-    interface
-        .systems
-        .traction
-        .federspeicher
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.cockpit.lm_federspeicher);
-
-    // Doors ---------------------------------------
-
-    spawn(door_control(
-        interface.systems.doors.clone(),
-        interface.systems.cockpit.clone(),
-        interface.systems.passenger.clone(),
-        interface.systems.traction.clone(),
-    ));
-
-    // Misc Systems ---------------------------------------
-
-    interface
-        .state
-        .active
-        .loop_sound("Snd_Cabin_IdleI".to_string());
-
-    interface
-        .state
-        .drive
-        .loop_sound("Snd_Cabin_IdleVR".to_string());
-
-    // Z Position ---------------------------------------
-
-    z_position();
-
-    //-----------------------------
-
-    interface
-}
-
-fn traction_control(interface: &Interface) {
-    let active = interface.state.active.clone();
-    let cockpit_b = interface.state.cockpit_b.clone();
-
-    let direction = interface.systems.traction.direction.clone();
-    let richtungswender = interface.systems.cockpit.richtungswender.clone();
-
-    multiple_on_change(&[&active.clone(), &richtungswender.clone()], move || {
-        direction.set(if active.get() {
-            match richtungswender.get() {
-                RichtungswenderState::V => TractionDirection::Forward,
-                RichtungswenderState::R => TractionDirection::Backward,
-                _ => {
-                    if cockpit_b.get() {
-                        TractionDirection::Backward
-                    } else {
-                        TractionDirection::Neutral
-                    }
-                }
-            }
-        } else {
-            TractionDirection::Neutral
-        });
-    });
-
-    let drive = interface.state.drive.clone();
-    let cockpit_a_drive = interface.state.cockpit_a_drive.clone();
-    let cockpit_b = interface.state.cockpit_b.clone();
-
-    let sollwertgeber = interface.systems.cockpit.sollwertgeber.clone();
-    let rear_fahrschalter = interface.systems.cockpit_rear.fahrschalter.clone();
-
-    let traction_target = interface.systems.traction.target.clone();
-
-    multiple_on_change(
-        &[
-            &drive.clone(),
-            &sollwertgeber.clone(),
-            &rear_fahrschalter.clone(),
-        ],
-        move || {
-            traction_target.set(if cockpit_a_drive.get() {
-                if sollwertgeber.get() < 0.0 {
-                    sollwertgeber.get() * 1.111
+    if let Some(mut richtungswender) = backbone.get(backbone_types::Richtungswender) {
+        richtungswender
+            .map(|state| {
+                if *state == RichtungswenderState::V || *state == RichtungswenderState::R {
+                    ActiveCockpit::ADrive
+                } else if *state != RichtungswenderState::O {
+                    ActiveCockpit::AActive
                 } else {
-                    sollwertgeber.get()
+                    ActiveCockpit::Off
                 }
-            } else if cockpit_b.get() {
-                match rear_fahrschalter.get() {
-                    BackDriveSwitch::Drive => 0.5,
-                    BackDriveSwitch::Neutral => 0.0,
-                    BackDriveSwitch::Brake => -0.6,
-                    BackDriveSwitch::MaxBrake => -1.0,
-                }
-            } else {
-                0.0
-            });
-        },
-    );
-
-    let cockpit_a_drive = interface.state.cockpit_a_drive.clone();
-    let cockpit_mg_bremse = interface.systems.cockpit.mg_bremse.clone();
-
-    let mg_target = interface.systems.traction.mg.clone();
-
-    multiple_on_change(
-        &[&cockpit_a_drive.clone(), &cockpit_mg_bremse.clone()],
-        move || {
-            mg_target.set(cockpit_a_drive.get() && cockpit_mg_bremse.get());
-        },
-    );
-
-    interface
-        .systems
-        .cockpit
-        .sanden
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.traction.sanding);
-
-    interface
-        .systems
-        .cockpit
-        .federspeicher_overwrite
-        .process(|v| v.is_in())
-        .and(&interface.state.cockpit_a_active)
-        .or(&interface.state.drive.invert())
-        .delay_relay(0.3, 0.3)
-        .forward(&interface.systems.traction.federspeicher);
-}
-
-fn outside_lights(interface: &Interface) {
-    interface
-        .systems
-        .cockpit
-        .beleuchtung_aussen
-        .process(|sw| *sw != OutsideLightSwitch::Off)
-        .forward(&interface.systems.lights.stand)
-        .forward(&interface.systems.lights.rueck)
-        .forward(&interface.systems.lights.instrumente);
-
-    interface
-        .systems
-        .cockpit
-        .beleuchtung_aussen
-        .process(|sw| (*sw == OutsideLightSwitch::Abblend) || (*sw == OutsideLightSwitch::Fern))
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.lights.abblend);
-
-    interface
-        .systems
-        .cockpit
-        .beleuchtung_aussen
-        .process(|sw| *sw == OutsideLightSwitch::Fern)
-        .and(&interface.state.cockpit_a_active)
-        .forward(&interface.systems.lights.fern)
-        .forward(&interface.systems.cockpit.lm_fernlicht);
-
-    interface
-        .systems
-        .traction
-        .direction
-        .process(|d| *d == TractionDirection::Backward)
-        .and(&interface.state.drive)
-        .forward(&interface.systems.lights.rueckfahr);
-
-    interface
-        .systems
-        .traction
-        .target
-        .process(|t| *t < 0.0)
-        .and(&interface.state.drive)
-        .forward(&interface.systems.lights.brems);
-}
-
-fn blinker_lights(state: &Interface) {
-    let cockpit_a_active = state.state.cockpit_a_active.clone();
-    let cockpit_b = state.state.cockpit_b.clone();
-    let switch_warnblinker = state.systems.cockpit.warnblinker.clone();
-    let switch_blinker_a = state.systems.cockpit.blinker.clone();
-    let switch_blinker_b = state.systems.cockpit_rear.blinker.clone();
-    let lm_blinker_links = state.systems.cockpit.lm_blinker_links.clone();
-    let lm_blinker_rechts = state.systems.cockpit.lm_blinker_rechts.clone();
-    let lm_warnblinker = state.systems.cockpit.lm_warnblinker.clone();
-
-    let blinker_state = state.systems.lights.blinker_state.clone();
-
-    multiple_on_change(
-        &[
-            &cockpit_a_active.clone(),
-            &cockpit_b.clone(),
-            &switch_warnblinker.clone(),
-            &switch_blinker_a.clone(),
-            &switch_blinker_b.clone(),
-        ],
-        move || {
-            blinker_state.set(if switch_warnblinker.get().is_in() {
-                BlinkerState::Warning
-            } else if cockpit_a_active.clone().get() {
-                match switch_blinker_a.get() {
-                    BlinkerSwitch::Left => BlinkerState::Left,
-                    BlinkerSwitch::Right => BlinkerState::Right,
-                    _ => BlinkerState::Off,
-                }
-            } else if cockpit_b.clone().get() {
-                match switch_blinker_b.get() {
-                    BlinkerSwitch::Left => BlinkerState::Right,
-                    BlinkerSwitch::Right => BlinkerState::Left,
-                    _ => BlinkerState::Off,
-                }
-            } else {
-                BlinkerState::Off
-            });
-        },
-    );
-
-    state
-        .systems
-        .lights
-        .blinker_lampe_rechts
-        .on_refresh(move |active| {
-            lm_blinker_rechts.set(*active);
-        });
-
-    state
-        .systems
-        .lights
-        .blinker_lampe_links
-        .on_refresh(move |active| {
-            lm_blinker_links.set(*active);
-        });
-
-    state
-        .systems
-        .lights
-        .lm_warnblinker
-        .on_refresh(move |active| {
-            lm_warnblinker.set(*active);
-        });
-}
-
-fn inside_lights(state: &Interface) {
-    let cockpit_main = state.systems.lights.cockpit_main.clone();
-    let cockpit_begleiter = state.systems.lights.cockpit_begleiter.clone();
-    let fahrgastraum = state.systems.lights.fahrgastraum.clone();
-
-    state
-        .systems
-        .cockpit
-        .beleuchtung_fahrerraum
-        .on_refresh(move |active| {
-            cockpit_main.set(*active >= 2);
-            cockpit_begleiter.set(*active >= 1);
-        });
-
-    state
-        .systems
-        .cockpit
-        .beleuchtung_fahrgastraum
-        .on_refresh(move |active| {
-            fahrgastraum.set(*active);
-        });
-}
-
-async fn door_control(
-    doors: DoorsState,
-    cockpit: Cockpit,
-    passenger: PassengerElementsState,
-    traction: TractionState,
-) {
-    let mut prev_switch_door_1 = false;
-
-    let shared_doors_closed = Shared::<bool>::default();
-
-    shared_doors_closed
-        .delay_relay(0.1, 0.0)
-        .forward(&cockpit.lm_doors_closed);
-
-    loop {
-        let speed = traction.speed.get();
-        let door_switch = cockpit.tueren.get();
-        let doors_closed = doors.all_closed.get();
-        let released =
-            (door_switch == DoorSwitch::Released || door_switch == DoorSwitch::Open) && speed < 1.0;
-
-        // Setze alle Status in einem Block
-        let states = {
-            let all_request = released && door_switch == DoorSwitch::Open;
-            let switch_door_1 = door_switch == DoorSwitch::Tuer1;
-            (released, all_request, switch_door_1)
-        };
-
-        set_var("Door_BtnLgt_Frei", released);
-
-        for (i, (button, request)) in passenger
-            .door_buttons
-            .iter()
-            .zip(doors.requests.iter())
-            .enumerate()
-        {
-            let button_pressed = button.get();
-            set_var(
-                format!("Door_{}_BtnLgt_Pressed", i + 1).as_str(),
-                button_pressed,
-            );
-            request.set_only_on_change(states.1 || (button_pressed && released));
-        }
-
-        doors.released.set_only_on_change(released);
-
-        shared_doors_closed.set(!released && doors_closed);
-
-        // if prev_doors_closed != lm_green && lm_green {
-        //     true.set("Snd_CP_A_DoorsClosed");
-        // }
-        // prev_doors_closed = lm_green;
-
-        doors.vehicle_speed.set_only_on_change(speed);
-
-        if !prev_switch_door_1 && states.2 {
-            doors
-                .door_1_override
-                .set_only_on_change(match doors.door_1_override.get() {
-                    DoorControlMode::Automatic => DoorControlMode::Open,
-                    DoorControlMode::Open => DoorControlMode::Close,
-                    DoorControlMode::Close => DoorControlMode::Open,
-                });
-        } else if released {
-            doors
-                .door_1_override
-                .set_only_on_change(DoorControlMode::Automatic);
-        }
-
-        prev_switch_door_1 = states.2;
-
-        wait::next_tick().await;
+            })
+            .write_to(&active_cockpit);
     }
-}
 
-fn z_position() {
-    let value = Shared::<f32>::var_reader("ZStellung_A")
-        .add_shared(&Shared::<f32>::var_reader("ZStellung_B"))
-        .multiply_value(4.0);
-
-    InertionSliderState::default()
-        .inertion_slider(
-            InertionSliderProperties::builder()
-                .friction(0.01)
-                .additional_force(value)
-                .damping_constant(Shared::new(2.0))
-                .bumps([
-                    Some(
-                        InertionSliderBumpProperties::builder()
-                            .position(-2.0)
-                            .reflection(0.5)
-                            .build(),
-                    ),
-                    Some(
-                        InertionSliderBumpProperties::builder()
-                            .position(2.0)
-                            .reflection(0.5)
-                            .build(),
-                    ),
+    if let Some(schloss_lock) = backbone.get(backbone_types::CockpitInputBools::SchlossLock(
+        CockpitSide::A,
+    )) {
+        token::<Schluessel>(
+            TokenProperties::builder()
+                .slots(vec![
+                    TokenSlot::builder()
+                        .token(Schluessel::Vorne)
+                        .visibility_var("Schluessel_A_RW")
+                        .input_event_set(InputEvent::new("InsertKey_Reverser", 0))
+                        .input_event_reset(InputEvent::new("Key_Reverser_R", 0))
+                        .sound_set("Snd_CP_A_KeyIn")
+                        .sound_reset("Snd_CP_A_KeyOut")
+                        .locked_deactivate(schloss_lock.clone())
+                        .build(),
+                    TokenSlot::builder()
+                        .token(Schluessel::Hinten)
+                        .visibility_var("Schluessel_H")
+                        .input_event_set(InputEvent::new("InsertKey_Reverser", 1))
+                        .input_event_reset(InputEvent::new("Key_Reverser_R", 1))
+                        .sound_set("Snd_CP_B_KeyIn")
+                        .sound_reset("Snd_CP_B_KeyOut")
+                        // .locked_deactivate(
+                        //     channels_clone
+                        //         .cockpit_rear
+                        //         .schloss
+                        //         .delay_relay(0.0, 0.1)
+                        //         .clone(),
+                        // )
+                        .build(),
                 ])
                 .build(),
+        );
+    }
+}
+
+fn outside_lights(backbone: &mut VehicleBackbone) {
+    if let Some(mut outside_light_switch) = backbone.get(backbone_types::OutsideLightSwitch) {
+        if let Some(stand) = backbone.get(backbone_types::Lights::Stand)
+            && let Some(rueck) = backbone.get(backbone_types::Lights::Rueck)
+            && let Some(instrumente) = backbone.get(backbone_types::Lights::Instrumente)
+        {
+            outside_light_switch
+                .not_equal_value(OutsideLightSwitch::Off)
+                .write_to(&stand)
+                .write_to(&rueck)
+                .write_to(&instrumente);
+        }
+
+        if let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit) {
+            if let Some(abblend) = backbone.get(backbone_types::Lights::Abblend) {
+                outside_light_switch
+                    .map(|v| *v == OutsideLightSwitch::Abblend || *v == OutsideLightSwitch::Fern)
+                    .and_observer(
+                        &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                        false,
+                        false,
+                    )
+                    .write_to(&abblend);
+            }
+
+            let mut fern = outside_light_switch
+                .map(|v| *v == OutsideLightSwitch::Fern)
+                .and_observer(
+                    &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                    false,
+                    false,
+                );
+
+            if let Some(fern_outside) = backbone.get(backbone_types::Lights::Fern) {
+                fern.write_to(&fern_outside);
+            }
+
+            if let Some(lm_fernlicht) = backbone.get(backbone_types::CockpitLeuchtmelder::Fernlicht)
+            {
+                fern.write_to(&lm_fernlicht);
+            }
+        }
+
+        // RÜCKFAHRLICHT EINFÜGEN
+
+        // BREMSLICHT EINFÜGEN
+    }
+}
+
+fn blinker_lights(backbone: &mut VehicleBackbone) {
+    if let Some(blinker_state) = backbone.get(backbone_types::LightBlinkerState)
+        && let Some(mut switch_warnblinker) =
+            backbone.get(backbone_types::CockpitInputInOutState::Warnblinker)
+        && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
+        && let Some(mut switch_blinker_front) =
+            backbone.get(backbone_types::BlinkerSwitch::Sw(CockpitSide::A))
+        && let Some(mut switch_blinker_back) =
+            backbone.get(backbone_types::BlinkerSwitch::Sw(CockpitSide::B))
+    {
+        switch_warnblinker
+            .map(|v| *v == ButtonInOutState::Out)
+            .if_then_1(
+                &mut active_cockpit
+                    .equal_value(ActiveCockpit::AActive)
+                    .if_then_2(
+                        &mut switch_blinker_front.map(|v| match *v {
+                            BlinkerSwitch::Left => BlinkerState::Left,
+                            BlinkerSwitch::Right => BlinkerState::Right,
+                            _ => BlinkerState::Off,
+                        }),
+                        &mut active_cockpit.equal_value(ActiveCockpit::B).if_then_1(
+                            &mut switch_blinker_back.map(|v| match *v {
+                                BlinkerSwitch::Left => BlinkerState::Right,
+                                BlinkerSwitch::Right => BlinkerState::Left,
+                                _ => BlinkerState::Off,
+                            }),
+                            BlinkerState::Off,
+                            false,
+                            BlinkerState::Off,
+                        ),
+                        false,
+                        BlinkerState::Off,
+                        BlinkerState::Off,
+                    ),
+                BlinkerState::Warning,
+                true,
+                BlinkerState::Off,
+            )
+            .write_to(&blinker_state);
+    }
+
+    if let Some(mut blinker_lampe_rechts) = backbone.get(backbone_types::Lights::BlinkerLampeRechts)
+        && let Some(lm_blinker_rechts) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
         )
-        .position
-        .var_writer("ZStellung_C");
+    {
+        blinker_lampe_rechts.write_to(&lm_blinker_rechts);
+    }
+
+    if let Some(mut blinker_lampe_links) = backbone.get(backbone_types::Lights::BlinkerLampeLinks)
+        && let Some(lm_blinker_links) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
+        )
+    {
+        blinker_lampe_links.write_to(&lm_blinker_links);
+    }
+
+    if let Some(lm_warnblinker) = backbone.get(backbone_types::CockpitLeuchtmelder::Warnblinker)
+        && let Some(mut warnblinker_light_lm) = backbone.get(backbone_types::Lights::LmWarnblinker)
+    {
+        warnblinker_light_lm.write_to(&lm_warnblinker);
+    }
+}
+
+fn inside_lights(backbone: &mut VehicleBackbone) {
+    if let Some(mut switch_fahrerraum) =
+        backbone.get(backbone_types::CockpitInputInts::BeleuchtungFahrerraum)
+        && let Some(light_fahrerraum) = backbone.get(backbone_types::Lights::CockpitMain)
+        && let Some(light_begleiter) = backbone.get(backbone_types::Lights::CockpitBegleiter)
+    {
+        switch_fahrerraum
+            .map(|v| *v >= 2)
+            .write_to(&light_fahrerraum);
+        switch_fahrerraum
+            .map(|v| *v >= 1)
+            .write_to(&light_begleiter);
+    }
+
+    if let Some(mut switch_fahrgastraum) =
+        backbone.get(backbone_types::CockpitInputBools::BeleuchtungFahrgastraum)
+        && let Some(light_fahrgastraum) = backbone.get(backbone_types::Lights::Fahrgastraum)
+    {
+        switch_fahrgastraum.write_to(&light_fahrgastraum);
+    }
+}
+fn doors(backbone: &mut VehicleBackbone) {
+    if let Some(mut door_switch) = backbone.get(backbone_types::DoorSwitch)
+        && let Some(mut released) = backbone.get(backbone_types::DoorsReleased)
+        && let Some(mut speed) = backbone.get(backbone_types::VehicleSpeed)
+        && let Some(mut all_closed) = backbone.get(backbone_types::DoorsAllClosed)
+        && let Some(door_1_override) = backbone.get(backbone_types::Door1Force)
+    {
+        let mut switch_released = door_switch.binary(
+            &mut speed,
+            |d, s| Some((*d == DoorSwitch::Released || *d == DoorSwitch::Open) && *s < 1.0),
+            DoorSwitch::Closed,
+            0.0,
+        );
+
+        let mut all_request = switch_released.and_observer(
+            &mut door_switch.equal_value(DoorSwitch::Open),
+            false,
+            false,
+        );
+        let mut switch_door_1 = door_switch.equal_value(DoorSwitch::Tuer1);
+
+        switch_released.var_writer("Door_BtnLgt_Frei");
+
+        for i in 0..4 {
+            let passenger_door_button =
+                backbone.get(backbone_types::PassengerDoorButtons::DoorRight(i as i8));
+            let door_request = backbone.get(backbone_types::DoorRequest::DoorRight(i as i8));
+
+            if let Some(door_request) = door_request {
+                passenger_door_button
+                    .unwrap()
+                    .and_observer(&mut switch_released, false, false)
+                    .or_observer(&mut all_request, false, false)
+                    .write_to(&door_request);
+            }
+        }
+
+        switch_released.write_to(&released);
+
+        if let Some(lm_doors_closed) =
+            backbone.get(backbone_types::CockpitLeuchtmelder::DoorsClosed)
+        {
+            released
+                .not()
+                .and_observer(&mut all_closed, false, true)
+                .delay_relay(0.1, 0.0)
+                .write_to(&lm_doors_closed);
+        }
+
+        let mut door_1_override_state = DoorControlMode::Close;
+
+        switch_door_1
+            .filter_map(move |v| {
+                if *v {
+                    door_1_override_state = match door_1_override_state {
+                        DoorControlMode::Automatic => DoorControlMode::Open,
+                        DoorControlMode::Open => DoorControlMode::Close,
+                        DoorControlMode::Close => DoorControlMode::Open,
+                    };
+                    Some(door_1_override_state)
+                } else {
+                    None
+                }
+            })
+            .write_to(&door_1_override);
+
+        switch_released
+            .filter_map(move |v| {
+                if *v {
+                    Some(DoorControlMode::Automatic)
+                } else {
+                    None
+                }
+            })
+            .write_to(&door_1_override);
+    }
+}
+
+fn misc(backbone: &mut VehicleBackbone) {
+    if let Some(klingel) = backbone.get(backbone_types::MiscBools::Klingel)
+        && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
+        && let Some(mut klingel_button) =
+            backbone.get(backbone_types::CockpitInputBools::Klingel(CockpitSide::A))
+        && let Some(mut mg_bremse) = backbone.get(backbone_types::CockpitInputBools::MgBremse)
+    {
+        klingel_button
+            .or_observer(&mut mg_bremse, false, false)
+            .and_observer(
+                &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                false,
+                false,
+            )
+            .filter(changed())
+            .write_to(&klingel);
+    }
+}
+
+pub fn create_other_observers(backbone: &mut VehicleBackbone) {
+    backbone.create_observer(backbone_types::VehicleSpeed);
+    backbone.create_observer(backbone_types::SystemActive);
+    backbone.create_observer(backbone_types::Voltage);
+}
+
+pub fn init_interface(backbone: &mut VehicleBackbone) {
+    backbone
+        .get(backbone_types::VehicleSpeed)
+        .unwrap()
+        .call(&0.0);
+    backbone
+        .get(backbone_types::SystemActive)
+        .unwrap()
+        .call(&true);
+    backbone.get(backbone_types::Voltage).unwrap().call(&1.0);
+}
+
+pub fn interface(backbone: &mut VehicleBackbone) {
+    cockpit(backbone);
+    doors(backbone);
+    outside_lights(backbone);
+    blinker_lights(backbone);
+    inside_lights(backbone);
+    misc(backbone);
 }

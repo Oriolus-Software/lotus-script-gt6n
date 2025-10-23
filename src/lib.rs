@@ -2,10 +2,8 @@ use lotus_extra::messages;
 use lotus_rt_extra::backbone::VehicleBackbone;
 use lotus_script::{
     Script,
-    content::ContentId,
-    graphics::textures::{AlphaMode, TextureAction, TextureCreationOptions},
+    graphics::textures::TextureCreationOptions,
     log,
-    math::IVec2,
     message::Coupling,
     prelude::Texture,
     script,
@@ -13,22 +11,26 @@ use lotus_script::{
     vehicle::{Axle, RailQuality},
 };
 
-use crate::cockpit::cockpit;
-use crate::doors::doors;
+use crate::{
+    cockpit::add_cockpit,
+    lights::add_lights,
+    misc::add_misc,
+    systems_interface::{create_other_observers, init_interface, interface},
+};
+use crate::{doors::add_doors, passenger_elements::add_passenger_elements};
 
 // use crate::systems_interface::Interface;
 
 pub mod backbone_types;
 pub mod cockpit;
 pub mod cockpit_types;
-// pub mod couplings;
+pub mod couplings;
 pub mod doors;
-// pub mod examples;
 // pub mod input;
-// pub mod lights;
-// pub mod misc;
-// pub mod passenger_elements;
-// pub mod systems_interface;
+pub mod lights;
+pub mod misc;
+pub mod passenger_elements;
+pub mod systems_interface;
 // pub mod traction;
 
 script!(ScriptGt6n);
@@ -56,8 +58,17 @@ impl Default for ScriptGt6n {
             written_tex: false,
         };
 
-        doors(&mut s.backbone);
-        cockpit(&mut s.backbone);
+        create_other_observers(&mut s.backbone);
+
+        add_cockpit(&mut s.backbone);
+        add_lights(&mut s.backbone);
+        add_doors(&mut s.backbone);
+        add_passenger_elements(&mut s.backbone);
+        add_misc(&mut s.backbone);
+
+        interface(&mut s.backbone);
+
+        init_interface(&mut s.backbone);
 
         s
     }
@@ -113,29 +124,29 @@ impl Script for ScriptGt6n {
 
         weichensounds();
 
-        if !self.written_tex {
-            self.test_tex
-                .as_mut()
-                .unwrap()
-                .add_action(TextureAction::DrawText {
-                    font: ContentId {
-                        user_id: 3473612,
-                        sub_id: 893621505,
-                    },
-                    text: "Hallo".to_string(),
-                    top_left: IVec2 { x: 20, y: 20 },
-                    letter_spacing: 0,
-                    full_color: Some(lotus_script::graphics::Color {
-                        r: 20,
-                        g: 20,
-                        b: 255,
-                        a: 255,
-                    }),
-                    alpha_mode: AlphaMode::Opaque,
-                    target_rect: None,
-                });
-            self.written_tex = true;
-        }
+        // if !self.written_tex {
+        //     self.test_tex
+        //         .as_mut()
+        //         .unwrap()
+        //         .add_action(TextureAction::DrawText {
+        //             font: ContentId {
+        //                 user_id: 3473612,
+        //                 sub_id: 893621505,
+        //             },
+        //             text: "Hallo".to_string(),
+        //             top_left: IVec2 { x: 20, y: 20 },
+        //             letter_spacing: 0,
+        //             full_color: Some(lotus_script::graphics::Color {
+        //                 r: 20,
+        //                 g: 20,
+        //                 b: 255,
+        //                 a: 255,
+        //             }),
+        //             alpha_mode: AlphaMode::Opaque,
+        //             target_rect: None,
+        //         });
+        //     self.written_tex = true;
+        // }
 
         let action = lotus_script::action::state("Lightcheck");
 
@@ -147,6 +158,8 @@ impl Script for ScriptGt6n {
     fn on_message(&mut self, msg: lotus_script::message::Message) {
         log::info!("Message: {:?}", msg);
         // process_message_rt_handler(msg);
+
+        // lotus_rt::message::process_message(msg);
     }
 }
 

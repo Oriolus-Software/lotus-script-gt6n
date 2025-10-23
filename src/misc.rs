@@ -1,20 +1,14 @@
-use lotus_rt_extra::{shared::Shared, sounds::StartLoopStopSoundProperties};
+use lotus_rt_extra::{backbone::VehicleBackbone, sounds::StartLoopStopSoundProperties};
 
-#[derive(Default, Debug, Clone)]
-pub struct MiscState {
-    pub klingel: Shared<bool>,
-}
+use crate::backbone_types;
 
-pub fn add_misc() -> MiscState {
-    let channels = MiscState::default();
-    let c = channels.clone();
-
-    c.klingel.start_loop_stop_sound(
-        StartLoopStopSoundProperties::builder()
-            .loop_sound("Snd_Klingel_Loop".to_string())
-            .stop_sound("Snd_Klingel_End".to_string())
-            .build(),
-    );
-
-    channels
+pub fn add_misc(backbone: &mut VehicleBackbone) {
+    backbone
+        .create_observer(backbone_types::MiscBools::Klingel)
+        .start_loop_stop_sound(
+            StartLoopStopSoundProperties::builder()
+                .loop_sound("Snd_Klingel_Loop".to_string())
+                .stop_sound("Snd_Klingel_End".to_string())
+                .build(),
+        );
 }

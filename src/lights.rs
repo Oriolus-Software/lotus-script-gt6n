@@ -1,103 +1,113 @@
-use lotus_extra::messages;
-use lotus_rt_extra::send;
 use lotus_rt_extra::{
-    shared::Shared, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
-    vehicle_systems::BlinkerState,
+    backbone::VehicleBackbone, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
 };
-use lotus_script::{message::Coupling, prelude::MessageTarget};
+
+use crate::backbone_types;
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;
 const BLINKER_ON_TIME: f32 = 0.32;
 const BLINKER_OFF_TIME: f32 = 0.43;
 
-#[derive(Default, Debug, Clone)]
-pub struct LightState {
-    pub voltage: Shared<f32>,
-    pub fahrgastraum: Shared<bool>,
-    pub stand: Shared<bool>,
-    pub abblend: Shared<bool>,
-    pub fern: Shared<bool>,
-    pub rueck: Shared<bool>,
-    pub rueckfahr: Shared<bool>,
-    pub brems: Shared<bool>,
-    pub blinker_state: Shared<BlinkerState>,
-    pub blinker_lampe_rechts: Shared<bool>,
-    pub blinker_lampe_links: Shared<bool>,
-    pub lm_warnblinker: Shared<bool>,
-    pub cockpit_main: Shared<bool>,
-    pub cockpit_begleiter: Shared<bool>,
-    pub instrumente: Shared<bool>,
-}
+pub fn add_lights(backbone: &mut VehicleBackbone) {
+    let Some(mut voltage) = backbone.get(backbone_types::Voltage) else {
+        return;
+    };
 
-pub fn add_lights() -> LightState {
-    let lights = LightState::default();
-    {
-        let lights = lights.clone();
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::CockpitMain),
+            0.0,
+            false,
+        )
+        .var_writer("A_CP_FstBelMain");
 
-        lights
-            .cockpit_main
-            .relay(&lights.voltage)
-            .var_writer("A_CP_FstBelMain");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::CockpitBegleiter),
+            0.0,
+            false,
+        )
+        .var_writer("A_CP_FstBelBegleiter");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Instrumente),
+            0.0,
+            false,
+        )
+        .var_writer("A_CP_InstrBel");
 
-        lights
-            .cockpit_begleiter
-            .relay(&lights.voltage)
-            .var_writer("A_CP_FstBelBegleiter");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Fahrgastraum),
+            0.0,
+            false,
+        )
+        .var_writer("Fahrgastraumbeleuchtung");
 
-        lights
-            .instrumente
-            .relay(&lights.voltage)
-            .var_writer("A_CP_InstrBel");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Stand),
+            0.0,
+            false,
+        )
+        .var_writer("Standlicht");
 
-        lights
-            .fahrgastraum
-            .relay(&lights.voltage)
-            .var_writer("Fahrgastraumbeleuchtung");
+    // l.map_with_from::<messages::std::Light>()
+    //     .send_message(MessageTarget::Broadcast {
+    //         across_couplings: false,
+    //         include_self: true,
+    //     });
 
-        let a = vec![1];
+    // l.process::<messages::std::Light>(From::from)
+    //     .send_message(MessageTarget::Broadcast {
+    //         across_couplings: false,
+    //         include_self: true,
+    //     });
 
-        let b = a.iter();
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Abblend),
+            0.0,
+            false,
+        )
+        .var_writer("Abblendlicht");
 
-        let c = b.copied(); //map(|x| *x);
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Fern),
+            0.0,
+            false,
+        )
+        .var_writer("Fernlicht");
 
-        let d = c.map(|x| x + 1);
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Rueck),
+            0.0,
+            false,
+        )
+        .var_writer("Ruecklicht");
 
-        let l = lights
-            .stand
-            .relay(&lights.voltage)
-            .var_writer("Standlicht")
-            .filter_only_on_change();
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
+            0.0,
+            false,
+        )
+        .var_writer("Rueckfahrlicht");
 
-        // l.map_with_from::<messages::std::Light>()
-        //     .send_message(MessageTarget::Broadcast {
-        //         across_couplings: false,
-        //         include_self: true,
-        //     });
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Brems),
+            0.0,
+            false,
+        )
+        .var_writer("Bremslicht");
 
-        l.process::<messages::std::Light>(From::from)
-            .send_message(MessageTarget::Broadcast {
-                across_couplings: false,
-                include_self: true,
-            });
-
-        lights
-            .abblend
-            .relay(&lights.voltage)
-            .var_writer("Abblendlicht");
-
-        lights.fern.relay(&lights.voltage).var_writer("Fernlicht");
-
-        lights.rueck.relay(&lights.voltage).var_writer("Ruecklicht");
-
-        lights
-            .rueckfahr
-            .relay(&lights.voltage)
-            .var_writer("Rueckfahrlicht");
-
-        lights.brems.relay(&lights.voltage).var_writer("Bremslicht");
-
-        let blinker_lights_state = lights.blinker_state.blinker(
+    let mut blinker_lights_state = backbone
+        .create_observer(backbone_types::LightBlinkerState)
+        .blinker(
             BlinkRelayProperties::builder()
                 .interval(BLINKER_ON_TIME + BLINKER_OFF_TIME)
                 .on_time(BLINKER_ON_TIME)
@@ -106,32 +116,24 @@ pub fn add_lights() -> LightState {
                 .build(),
         );
 
-        blinker_lights_state
-            .left
-            .forward(&lights.blinker_lampe_links);
+    blinker_lights_state
+        .left
+        .to_float()
+        .var_writer("BlinkerLeft");
 
-        blinker_lights_state
-            .right
-            .forward(&lights.blinker_lampe_rechts);
+    blinker_lights_state
+        .right
+        .to_float()
+        .var_writer("BlinkerRight");
 
-        blinker_lights_state.warning.forward(&lights.lm_warnblinker);
+    blinker_lights_state
+        .warning
+        .write_to(&backbone.create_observer(backbone_types::Lights::LmWarnblinker));
 
-        lights
-            .blinker_lampe_links
-            .to_float()
-            .var_writer("BlinkerLeft");
-
-        lights
-            .blinker_lampe_rechts
-            .to_float()
-            .var_writer("BlinkerRight");
-
-        blinker_lights_state.blinker_relay.start_stop_sound(
-            StartStopSoundProperties::builder()
-                .start_sound("Snd_Relais_Blinker_On".to_string())
-                .stop_sound("Snd_Relais_Blinker_Off".to_string())
-                .build(),
-        );
-    }
-    lights
+    blinker_lights_state.blinker_relay.start_stop_sound(
+        StartStopSoundProperties::builder()
+            .start_sound("Snd_Relais_Blinker_On".to_string())
+            .stop_sound("Snd_Relais_Blinker_Off".to_string())
+            .build(),
+    );
 }

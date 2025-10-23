@@ -12,6 +12,9 @@ lotus-script-sys = { path = "../../script-rs/lotus-script-sys" }
 lotus-shared = { path = "../../script-rs/lotus-shared" }
 lotus-bindgen-macros = { path = "../../script-rs/lotus-bindgen-macros" }
 
+[patch.'https://github.com/Oriolus-Software/lotus-extra']
+lotus-extra = { path = "../../lotus-extra" }
+
 [dependencies]
 lotus-script = { git = "https://github.com/Oriolus-Software/LOTUS-Scripting.git" }
 lotus-extra = { path = "../../lotus-extra" }

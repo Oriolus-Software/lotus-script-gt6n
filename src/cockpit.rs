@@ -6,7 +6,7 @@ use crate::{
 };
 use lotus_extra::types::CockpitSide;
 use lotus_rt_extra::{
-    backbone::{ObserverBackbone, VehicleBackbone},
+    backbone::VehicleBackbone,
     cockpit_simple::{
         ButtonInOutProperties, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
         StepSwitchInputToggle, StepSwitchProperties, SwitchProperties, button_inout, std_button,
@@ -21,12 +21,22 @@ use lotus_rt_extra::{
 };
 use strum::IntoEnumIterator;
 
-pub fn cockpit(backbone: &mut VehicleBackbone) {
+pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     // Inputs cockpit A ==================================================================================
 
-    let mut voltage_r = Observer::<f32>::default();
-    let mut reverser_lock = Observer::<bool>::default();
+    let mut voltage_r = backbone
+        .get(backbone_types::Voltage)
+        .expect("Voltage not found!")
+        .clone();
+
+    let sollwertgeber_lock = Observer::<bool>::default();
+    let reverser_lock = Observer::<bool>::default();
     let schloss_lock = Observer::<bool>::default();
+
+    backbone.insert(
+        backbone_types::CockpitInputBools::SchlossLock(CockpitSide::A),
+        Observer::<bool>::default(),
+    );
 
     let mut schloss = switch(
         SwitchProperties::builder()
@@ -38,6 +48,11 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
             .build(),
     );
 
+    backbone.insert(
+        backbone_types::CockpitInputBools::Schloss(CockpitSide::A),
+        schloss.clone(),
+    );
+
     let mut richtungswender = step_switch::<RichtungswenderState>(
         StepSwitchProperties::builder()
             .input_event_plus(InputEvent::new("ReverserPlus", 0))
@@ -45,9 +60,9 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
             .animation_var("A_CP_Richtungswender")
             .position_min(RichtungswenderState::O)
             .position_max(RichtungswenderState::R)
-            .locked(reverser_lock.or_observer(&mut schloss.not()).clone())
+            .locked(reverser_lock.clone())
             .sound("Snd_CP_A_Reverser")
-            .standard_position(RichtungswenderState::I)
+            // .standard_position(RichtungswenderState::I)
             .build(),
         None::<fn() -> RichtungswenderState>,
         None::<fn() -> RichtungswenderState>,
@@ -55,17 +70,12 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
 
     backbone.insert(backbone_types::Richtungswender, richtungswender.clone());
 
-    let mut richtungswender_locks = richtungswender
-        .map(|state| *state == RichtungswenderState::O || *state == RichtungswenderState::I);
-
-    richtungswender_locks.write_to(&reverser_lock);
-
     backbone.insert(
         backbone_types::CockpitInputFloats::Sollwertgeber,
         sollwertgeber(
             SollwertgeberProperties::builder()
                 .animation("A_CP_Sollwertgeber")
-                .lock(richtungswender_locks.clone())
+                .lock(sollwertgeber_lock.clone())
                 .speed(SollwertgeberPropertiesSpeeds {
                     normal: 1.0,
                     high: 5.0,
@@ -87,7 +97,17 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
 
+    schloss.not().write_to(&reverser_lock);
+    richtungswender
+        .map(|state| *state == RichtungswenderState::O || *state == RichtungswenderState::I)
+        .write_to(&sollwertgeber_lock);
+    richtungswender
+        .map(|state| *state == RichtungswenderState::V || *state == RichtungswenderState::R)
+        .write_to(&schloss_lock);
+
     let mut lm_check = gt6n_button("Lightcheck", "A_CP_TS_Lampentest", CockpitSide::A);
+
+    //----
 
     backbone.insert(
         backbone_types::CockpitInputBools::Sifa(backbone_types::SifaPosition::Sollwertgeber),
@@ -406,11 +426,11 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
 
     let mut std_lm =
         |node_id: backbone_types::CockpitLeuchtmelder, variable: &str| -> Observer<bool> {
-            let mut value = backbone.add_and_get_new_observer(node_id);
+            let mut value = backbone.create_observer(node_id);
             value
-                .or_observer(&mut lm_check)
+                .or_observer(&mut lm_check, false, false)
                 .to_float()
-                .multiply_observer(&mut voltage_r)
+                .multiply_observer(&mut voltage_r, 1.0, 0.0)
                 .var_writer(variable);
             value
         };
@@ -490,13 +510,11 @@ pub fn cockpit(backbone: &mut VehicleBackbone) {
 
     // Initialize =====================================================================================
 
-    schloss_lock.call(&true);
-    richtungswender_locks.call(&true);
-    voltage_r.call(&1.0);
-    lm_check.call(&false);
+    // richtungswender_locks.call(&true);
+    // lm_check.call(&false);
 
     backbone_types::CockpitLeuchtmelder::iter().for_each(|lm| {
-        if let Some(a) = backbone.get(&lm) {
+        if let Some(a) = backbone.get(lm) {
             a.call(&false);
         }
     });

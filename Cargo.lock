@@ -142,7 +142,7 @@ name = "gt6n"
 version = "0.1.0"
 dependencies = [
  "bon",
- "lotus-extra 0.1.0",
+ "lotus-extra",
  "lotus-rt",
  "lotus-rt-extra",
  "lotus-script",
@@ -199,15 +199,7 @@ name = "lotus-extra"
 version = "0.1.0"
 dependencies = [
  "lotus-script",
- "serde",
-]
-
-[[package]]
-name = "lotus-extra"
-version = "0.1.0"
-source = "git+https://github.com/Oriolus-Software/lotus-extra.git#310987b3a0213c55df486533e29892db98b913d5"
-dependencies = [
- "lotus-script",
+ "num-traits",
  "serde",
 ]
 
@@ -226,9 +218,10 @@ name = "lotus-rt-extra"
 version = "0.1.0"
 dependencies = [
  "bon",
- "lotus-extra 0.1.0 (git+https://github.com/Oriolus-Software/lotus-extra.git)",
+ "lotus-extra",
  "lotus-rt",
  "lotus-script",
+ "num-traits",
  "serde",
  "typedmap",
 ]
