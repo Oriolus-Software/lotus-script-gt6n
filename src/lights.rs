@@ -89,21 +89,21 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
         )
         .var_writer("Ruecklicht");
 
-    voltage
-        .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
-            0.0,
-            false,
-        )
-        .var_writer("Rueckfahrlicht");
+    // voltage
+    //     .switch(
+    //         &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
+    //         0.0,
+    //         false,
+    //     )
+    //     .var_writer("Rueckfahrlicht");
 
-    voltage
-        .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Brems),
-            0.0,
-            false,
-        )
-        .var_writer("Bremslicht");
+    // voltage
+    //     .switch(
+    //         &mut backbone.create_observer(backbone_types::Lights::Brems),
+    //         0.0,
+    //         false,
+    //     )
+    //     .var_writer("Bremslicht");
 
     let mut blinker_lights_state = backbone
         .create_observer(backbone_types::LightBlinkerState)

@@ -16,6 +16,7 @@ use crate::{
     lights::add_lights,
     misc::add_misc,
     systems_interface::{create_other_observers, init_interface, interface},
+    traction::add_traction,
 };
 use crate::{doors::add_doors, passenger_elements::add_passenger_elements};
 
@@ -31,7 +32,7 @@ pub mod lights;
 pub mod misc;
 pub mod passenger_elements;
 pub mod systems_interface;
-// pub mod traction;
+pub mod traction;
 
 script!(ScriptGt6n);
 
@@ -62,6 +63,7 @@ impl Default for ScriptGt6n {
 
         add_cockpit(&mut s.backbone);
         add_lights(&mut s.backbone);
+        add_traction(&mut s.backbone);
         add_doors(&mut s.backbone);
         add_passenger_elements(&mut s.backbone);
         add_misc(&mut s.backbone);

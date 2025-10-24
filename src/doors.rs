@@ -44,7 +44,7 @@ pub struct DoorsWithController {
 }
 
 pub fn add_doors(backbone: &mut VehicleBackbone) {
-    let system_active = backbone.create_observer(SystemActive);
+    let system_active = backbone.get(SystemActive).unwrap();
     let released = backbone.create_observer(DoorsReleased);
     let door_1_force = backbone.create_observer(Door1Force);
 
