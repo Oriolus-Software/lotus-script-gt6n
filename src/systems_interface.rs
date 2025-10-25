@@ -35,8 +35,9 @@ pub fn init_interface(backbone: &mut VehicleBackbone) {
         .call(&true);
     backbone.get(backbone_types::Voltage).unwrap().call(&1.0);
 
-    set_var("Coupling_A_vis", true);
-    set_var("Coupling_B_vis", true);
+    set_var("Coupling_A_casecap", true);
+    set_var("Coupling_B_casecap", true);
+    set_var("Cfg_OldDisplay", true);
 }
 
 pub fn interface(backbone: &mut VehicleBackbone) {
@@ -71,6 +72,8 @@ fn general_system_active(backbone: &mut VehicleBackbone) {
         && let Some(system_active) = backbone.get(backbone_types::SystemActive)
         && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
         && let Some(drive_mode) = backbone.get(backbone_types::DriveMode)
+        && let Some(mut schluessel_b) =
+            backbone.get(backbone_types::CockpitInputBools::Schloss(CockpitSide::B))
     {
         richtungswender
             .map(|state| {
@@ -89,6 +92,17 @@ fn general_system_active(backbone: &mut VehicleBackbone) {
         active_cockpit
             .map(|v| *v != ActiveCockpit::Off)
             .write_to(&system_active);
+
+        schluessel_b
+            .write_to(&drive_mode)
+            .map(|state| {
+                if *state {
+                    ActiveCockpit::B
+                } else {
+                    ActiveCockpit::Off
+                }
+            })
+            .write_to(&active_cockpit);
     }
 
     if let Some(mut active) = backbone.get(backbone_types::SystemActive) {
@@ -201,16 +215,14 @@ fn traction_control(backbone: &mut VehicleBackbone) {
             .zip(
                 &mut sollwertgeber,
                 |(drive_mode_a, sollwertgeber), next| {
-                    let r = if *drive_mode_a {
-                        if *sollwertgeber < 0.0 {
+                    if *drive_mode_a {
+                        let r = if *sollwertgeber < 0.0 {
                             *sollwertgeber * 1.111
                         } else {
                             *sollwertgeber
-                        }
-                    } else {
-                        0.0
-                    };
-                    next(&r);
+                        };
+                        next(&r)
+                    }
                 },
                 false,
                 0.0,
@@ -260,7 +272,7 @@ fn traction_control(backbone: &mut VehicleBackbone) {
                 false,
                 false,
             )
-            .or_observer(&mut drive_mode_a.not(), false, true)
+            .or_observer(&mut drive_mode.not(), false, true)
             .delay_relay(0.3, 0.3)
             .write_to(&federspeicher);
 
@@ -341,10 +353,6 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
                 }
             }
         }
-
-        // RÜCKFAHRLICHT EINFÜGEN
-
-        // BREMSLICHT EINFÜGEN
     }
 }
 
@@ -408,6 +416,22 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
         && let Some(mut warnblinker_light_lm) = backbone.get(backbone_types::Lights::LmWarnblinker)
     {
         warnblinker_light_lm.write_to(&lm_warnblinker);
+    }
+
+    if let Some(mut blinker_lampe_rechts) = backbone.get(backbone_types::Lights::BlinkerRechts)
+        && let Some(lm_blinker_rechts) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::B),
+        )
+    {
+        blinker_lampe_rechts.write_to(&lm_blinker_rechts);
+    }
+
+    if let Some(mut blinker_lampe_links) = backbone.get(backbone_types::Lights::BlinkerLinks)
+        && let Some(lm_blinker_links) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::B),
+        )
+    {
+        blinker_lampe_links.write_to(&lm_blinker_links);
     }
 }
 
