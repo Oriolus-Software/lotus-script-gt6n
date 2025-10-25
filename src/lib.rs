@@ -187,7 +187,7 @@ fn test_message() {
     lotus_script::prelude::send_message(
         &messages::std::PowerSignalState::On {
             quickstart: false,
-            cabin_id: messages::std::PowerSignalCabin::ACab,
+            cabin_id: messages::std::PowerSignalCabin::A,
         },
         lotus_script::message::MessageTarget::Broadcast {
             across_couplings: true,

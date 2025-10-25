@@ -40,7 +40,7 @@ pub fn add_traction(backbone: &mut VehicleBackbone) {
     let mut target = backbone.create_observer(backbone_types::TractionFloat::Target);
     let mut federspeicher = backbone.create_observer(backbone_types::TractionBool::Federspeicher);
     let mut mg: Observer<bool> = backbone.create_observer(backbone_types::TractionBool::MgBremse);
-    let mut speed = backbone.create_observer(backbone_types::TractionFloat::Speed);
+    let mut speed: Observer<f32> = backbone.create_observer(backbone_types::TractionFloat::Speed);
     let mut sanden = backbone.create_observer(backbone_types::TractionBool::Sanden);
 
     let traction_mode = Observer::<TractionUnitMode>::default();
@@ -201,6 +201,11 @@ pub fn add_traction(backbone: &mut VehicleBackbone) {
     let mut max_brake = fast_brake.or_value(false);
 
     let mut ref_speed = var_reader::<f32>("v_Axle_mps_1_0");
+
+    if let Some(vehicle_speed) = backbone.get(backbone_types::VehicleSpeed) {
+        ref_speed.write_to(&vehicle_speed);
+    }
+
     let mut speed_in_dir = direction
         .map(|dir| *dir == TractionDirection::Backward)
         .if_then_o_o(
@@ -277,9 +282,9 @@ pub fn add_traction(backbone: &mut VehicleBackbone) {
         &mut mode_fix_cond_b,
         |(a, b), next| {
             if *a {
-                next(&true)
-            } else if *b {
                 next(&false)
+            } else if *b {
+                next(&true)
             }
         },
         false,

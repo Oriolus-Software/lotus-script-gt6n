@@ -1,6 +1,8 @@
+use lotus_extra::messages;
 use lotus_rt_extra::{
     backbone::VehicleBackbone, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
 };
+use lotus_script::prelude::MessageTarget;
 
 use crate::backbone_types;
 
@@ -51,13 +53,12 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
             0.0,
             false,
         )
-        .var_writer("Standlicht");
-
-    // l.map_with_from::<messages::std::Light>()
-    //     .send_message(MessageTarget::Broadcast {
-    //         across_couplings: false,
-    //         include_self: true,
-    //     });
+        .var_writer("Standlicht")
+        .map(|v| messages::std::Light { value: *v })
+        .send_message(MessageTarget::Broadcast {
+            across_couplings: false,
+            include_self: true,
+        });
 
     // l.process::<messages::std::Light>(From::from)
     //     .send_message(MessageTarget::Broadcast {
@@ -89,21 +90,21 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
         )
         .var_writer("Ruecklicht");
 
-    // voltage
-    //     .switch(
-    //         &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
-    //         0.0,
-    //         false,
-    //     )
-    //     .var_writer("Rueckfahrlicht");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
+            0.0,
+            false,
+        )
+        .var_writer("Rueckfahrlicht");
 
-    // voltage
-    //     .switch(
-    //         &mut backbone.create_observer(backbone_types::Lights::Brems),
-    //         0.0,
-    //         false,
-    //     )
-    //     .var_writer("Bremslicht");
+    voltage
+        .switch(
+            &mut backbone.create_observer(backbone_types::Lights::Brems),
+            0.0,
+            false,
+        )
+        .var_writer("Bremslicht");
 
     let mut blinker_lights_state = backbone
         .create_observer(backbone_types::LightBlinkerState)
@@ -118,11 +119,13 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     blinker_lights_state
         .left
+        .write_to(&backbone.create_observer(backbone_types::Lights::BlinkerLinks))
         .to_float()
         .var_writer("BlinkerLeft");
 
     blinker_lights_state
         .right
+        .write_to(&backbone.create_observer(backbone_types::Lights::BlinkerRechts))
         .to_float()
         .var_writer("BlinkerRight");
 

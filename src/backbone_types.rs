@@ -1,4 +1,4 @@
-use lotus_extra::types::CockpitSide;
+use lotus_extra::vehicle::CockpitSide;
 use lotus_rt_extra::{
     backbone::TypedMapKey,
     cockpit_simple::{ButtonInOutState, ButtonTwoSidedSpringLoadedState},
@@ -47,6 +47,13 @@ pub struct ActiveCockpit;
 
 impl TypedMapKey for ActiveCockpit {
     type Value = Observer<systems_interface::ActiveCockpit>;
+}
+
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub struct DriveMode;
+
+impl TypedMapKey for DriveMode {
+    type Value = Observer<bool>;
 }
 
 // ================================================================================
@@ -194,8 +201,8 @@ pub enum Lights {
     Rueck,
     Rueckfahr,
     Brems,
-    // BlinkerLampeRechts,
-    // BlinkerLampeLinks,
+    BlinkerRechts,
+    BlinkerLinks,
     LmWarnblinker,
     CockpitMain,
     CockpitBegleiter,

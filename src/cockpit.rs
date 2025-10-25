@@ -4,7 +4,7 @@ use crate::{
         BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
     },
 };
-use lotus_extra::types::CockpitSide;
+use lotus_extra::vehicle::CockpitSide;
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
     cockpit_simple::{

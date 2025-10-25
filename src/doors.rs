@@ -12,8 +12,7 @@ use lotus_rt_extra::{
 };
 
 use crate::backbone_types::{
-    Door1Force, DoorRequest, DoorsAllClosed, DoorsReleased, OverrideNoWarning, SystemActive,
-    VehicleSpeed,
+    self, Door1Force, DoorRequest, DoorsAllClosed, DoorsReleased, OverrideNoWarning, SystemActive,
 };
 
 const PLUG_RADIUS: f32 = 0.06;
@@ -30,7 +29,6 @@ pub struct DoorsState {
     pub doors_with_controller: Vec<DoorsWithController>,
     pub released: Observer<bool>,
     pub requests: Vec<Observer<bool>>,
-    pub vehicle_speed: Observer<f32>,
     pub door_1_override: Observer<DoorControlMode>,
     pub override_no_warning: Observer<bool>,
     pub all_closed: Observer<bool>,
@@ -126,7 +124,6 @@ pub fn add_doors(backbone: &mut VehicleBackbone) {
 
     let mut state = DoorsState {
         doors_with_controller: doors_with_controller.clone(),
-        vehicle_speed: backbone.create_observer(VehicleSpeed),
         released,
         requests,
         door_1_override: door_1_force,
@@ -201,29 +198,31 @@ pub fn add_doors(backbone: &mut VehicleBackbone) {
     )
     .all(|v| v);
 
-    let mut warning_outside_relay = door_warning_outside_relay_with_stop_on_speed(
-        DoorWarningOutsideRelayWithStopOnSpeedProperties::builder()
-            .timer_after_closed(30.0)
-            .max_speed(3.0 / 3.6)
-            .released(state.released.clone())
-            .all_doors_closed(all_doors_closed.clone())
-            .speed(state.vehicle_speed.clone())
-            .build(),
-    );
+    if let Some(vehicle_speed) = backbone.get(backbone_types::VehicleSpeed) {
+        let mut warning_outside_relay = door_warning_outside_relay_with_stop_on_speed(
+            DoorWarningOutsideRelayWithStopOnSpeedProperties::builder()
+                .timer_after_closed(30.0)
+                .max_speed(3.0 / 3.6)
+                .released(state.released.clone())
+                .all_doors_closed(all_doors_closed.clone())
+                .speed(vehicle_speed.clone())
+                .build(),
+        );
 
-    warning_outside_relay.var_writer("Snd_Relais_Doorwarn");
+        warning_outside_relay.var_writer("Snd_Relais_Doorwarn");
 
-    let mut outside_warning_blinker_relais = warning_outside_relay.blink_relay(
-        BlinkRelayProperties::builder()
-            .interval(0.393)
-            .on_time(0.196)
-            .build(),
-    );
+        let mut outside_warning_blinker_relais = warning_outside_relay.blink_relay(
+            BlinkRelayProperties::builder()
+                .interval(0.393)
+                .on_time(0.196)
+                .build(),
+        );
 
-    outside_warning_blinker_relais
-        .to_float()
-        .var_writer("Door_1_WarnlightO")
-        .var_writer("Door_234_WarnlightO");
+        outside_warning_blinker_relais
+            .to_float()
+            .var_writer("Door_1_WarnlightO")
+            .var_writer("Door_234_WarnlightO");
+    }
 }
 
 #[derive(Clone, Debug)]

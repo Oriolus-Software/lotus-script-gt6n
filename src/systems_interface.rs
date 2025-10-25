@@ -1,13 +1,16 @@
-use lotus_extra::types::CockpitSide;
+use lotus_extra::vehicle::CockpitSide;
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
     cockpit_simple::ButtonInOutState,
     cockpit_special::{TokenProperties, TokenSlot, token},
     doors::DoorControlMode,
     input::InputEvent,
-    observer::changed,
+    observer::{Observer, changed_init},
+    physic::{InertionSliderBumpProperties, InertionSliderProperties, inertion_slider},
+    variables::var_reader,
     vehicle_systems::BlinkerState,
 };
+use lotus_script::var::set_var;
 
 use crate::{
     backbone_types,
@@ -17,12 +20,43 @@ use crate::{
     traction::TractionDirection,
 };
 
+pub fn create_other_observers(backbone: &mut VehicleBackbone) {
+    backbone.create_observer(backbone_types::ActiveCockpit);
+    backbone.create_observer(backbone_types::DriveMode);
+    backbone.create_observer(backbone_types::VehicleSpeed);
+    backbone.create_observer(backbone_types::SystemActive);
+    backbone.create_observer(backbone_types::Voltage);
+}
+
+pub fn init_interface(backbone: &mut VehicleBackbone) {
+    backbone
+        .get(backbone_types::SystemActive)
+        .unwrap()
+        .call(&true);
+    backbone.get(backbone_types::Voltage).unwrap().call(&1.0);
+
+    set_var("Coupling_A_vis", true);
+    set_var("Coupling_B_vis", true);
+}
+
+pub fn interface(backbone: &mut VehicleBackbone) {
+    general_system_active(backbone);
+    cockpit(backbone);
+    traction_control(backbone);
+    doors(backbone);
+    outside_lights(backbone);
+    blinker_lights(backbone);
+    inside_lights(backbone);
+    misc(backbone);
+    z_position();
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ActiveCockpit {
     #[default]
     Off,
-    ADrive,
-    AActive,
+    // true: drive mode
+    A,
     B,
 }
 
@@ -32,23 +66,41 @@ pub enum Schluessel {
     Hinten,
 }
 
-fn cockpit(backbone: &mut VehicleBackbone) {
+fn general_system_active(backbone: &mut VehicleBackbone) {
     if let Some(mut richtungswender) = backbone.get(backbone_types::Richtungswender)
-        && let Some(active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
+        && let Some(system_active) = backbone.get(backbone_types::SystemActive)
+        && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
+        && let Some(drive_mode) = backbone.get(backbone_types::DriveMode)
     {
         richtungswender
             .map(|state| {
-                if *state == RichtungswenderState::V || *state == RichtungswenderState::R {
-                    ActiveCockpit::ADrive
-                } else if *state != RichtungswenderState::O {
-                    ActiveCockpit::AActive
+                if *state != RichtungswenderState::O {
+                    ActiveCockpit::A
                 } else {
                     ActiveCockpit::Off
                 }
             })
             .write_to(&active_cockpit);
+
+        richtungswender
+            .map(|state| *state == RichtungswenderState::V || *state == RichtungswenderState::R)
+            .write_to(&drive_mode);
+
+        active_cockpit
+            .map(|v| *v != ActiveCockpit::Off)
+            .write_to(&system_active);
     }
 
+    if let Some(mut active) = backbone.get(backbone_types::SystemActive) {
+        active.loop_sound("Snd_Cabin_IdleI".to_string());
+    }
+
+    if let Some(mut drive) = backbone.get(backbone_types::DriveMode) {
+        drive.loop_sound("Snd_Cabin_IdleVR".to_string());
+    }
+}
+
+fn cockpit(backbone: &mut VehicleBackbone) {
     if let Some(schloss_lock) = backbone.get(backbone_types::CockpitInputBools::SchlossLock(
         CockpitSide::A,
     )) {
@@ -87,22 +139,36 @@ fn cockpit(backbone: &mut VehicleBackbone) {
 
 fn traction_control(backbone: &mut VehicleBackbone) {
     if let Some(mut active) = backbone.get(backbone_types::SystemActive)
+        && let Some(mut drive_mode) = backbone.get(backbone_types::DriveMode)
         && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
         && let Some(direction) = backbone.get(backbone_types::TractionDirection)
         && let Some(mut richtungswender) = backbone.get(backbone_types::Richtungswender)
         && let Some(mut cockpit_b) =
             backbone.get(backbone_types::CockpitInputBools::Schloss(CockpitSide::B))
         && let Some(traction_target) = backbone.get(backbone_types::TractionFloat::Target)
-        && let Some(mut sollwertgeber) = backbone.get(backbone_types::TractionFloat::Target)
+        && let Some(mut sollwertgeber) =
+            backbone.get(backbone_types::CockpitInputFloats::Sollwertgeber)
         && let Some(mut rear_fahrschalter) = backbone.get(backbone_types::BackDriveSwitch)
         && let Some(mut btn_mg_bremse) = backbone.get(backbone_types::CockpitInputBools::MgBremse)
         && let Some(mg_target) = backbone.get(backbone_types::TractionBool::MgBremse)
-        && let Some(federspeicher) = backbone.get(backbone_types::TractionBool::Federspeicher)
+        && let Some(mut federspeicher) = backbone.get(backbone_types::TractionBool::Federspeicher)
         && let Some(mut btn_federspeicher_overwrite) =
             backbone.get(backbone_types::CockpitInputInOutState::FederspeicherOverwrite)
         && let Some(sanden) = backbone.get(backbone_types::TractionBool::Sanden)
         && let Some(mut btn_sanden) = backbone.get(backbone_types::CockpitInputBools::Sanden)
     {
+        let mut drive_mode_a = active_cockpit.equal_value(ActiveCockpit::A).and_observer(
+            &mut drive_mode,
+            false,
+            false,
+        );
+
+        let mut drive_mode_b = active_cockpit.equal_value(ActiveCockpit::B).and_observer(
+            &mut drive_mode,
+            false,
+            false,
+        );
+
         active
             .tripple_zip(
                 &mut richtungswender,
@@ -131,52 +197,57 @@ fn traction_control(backbone: &mut VehicleBackbone) {
             )
             .write_to(&direction);
 
-        // active_cockpit
-        //     .tripple_zip(
-        //         &mut sollwertgeber,
-        //         &mut rear_fahrschalter,
-        //         |(active_cockpit, sollwertgeber, rear_fahrschalter), next| {
-        //             let r = if *active_cockpit == ActiveCockpit::ADrive {
-        //                 let sollwertgeber = *sollwertgeber;
-        //                 if sollwertgeber < 0.0 {
-        //                     sollwertgeber * 1.111
-        //                 } else {
-        //                     sollwertgeber
-        //                 }
-        //             } else if *active_cockpit == ActiveCockpit::B {
-        //                 if *rear_fahrschalter == BackDriveSwitch::Drive {
-        //                     0.5
-        //                 } else if *rear_fahrschalter == BackDriveSwitch::Neutral {
-        //                     0.0
-        //                 } else if *rear_fahrschalter == BackDriveSwitch::Brake {
-        //                     -0.6
-        //                 } else {
-        //                     -1.0
-        //                 }
-        //             } else {
-        //                 0.0
-        //             };
-        //             next(&r);
-        //         },
-        //         ActiveCockpit::Off,
-        //         0.0,
-        //         BackDriveSwitch::Neutral,
-        //     )
-        //     .write_to(&traction_target);
+        drive_mode_a
+            .zip(
+                &mut sollwertgeber,
+                |(drive_mode_a, sollwertgeber), next| {
+                    let r = if *drive_mode_a {
+                        if *sollwertgeber < 0.0 {
+                            *sollwertgeber * 1.111
+                        } else {
+                            *sollwertgeber
+                        }
+                    } else {
+                        0.0
+                    };
+                    next(&r);
+                },
+                false,
+                0.0,
+            )
+            .write_to(&traction_target);
 
-        active_cockpit.map(|v| 1.0).write_to(&traction_target);
+        drive_mode_b
+            .zip(
+                &mut rear_fahrschalter,
+                |(drive_mode_b, rear_fahrschalter), next| {
+                    let r = if *drive_mode_b {
+                        if *rear_fahrschalter == BackDriveSwitch::Drive {
+                            0.5
+                        } else if *rear_fahrschalter == BackDriveSwitch::Neutral {
+                            0.0
+                        } else if *rear_fahrschalter == BackDriveSwitch::Brake {
+                            -0.6
+                        } else {
+                            -1.0
+                        }
+                    } else {
+                        0.0
+                    };
+                    next(&r);
+                },
+                false,
+                BackDriveSwitch::Neutral,
+            )
+            .write_to(&traction_target);
 
         btn_mg_bremse
-            .and_observer(
-                &mut active_cockpit.equal_value(ActiveCockpit::ADrive),
-                false,
-                false,
-            )
+            .and_observer(&mut drive_mode_a, false, false)
             .write_to(&mg_target);
 
         btn_sanden
             .and_observer(
-                &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                &mut active_cockpit.equal_value(ActiveCockpit::A),
                 false,
                 false,
             )
@@ -185,20 +256,25 @@ fn traction_control(backbone: &mut VehicleBackbone) {
         btn_federspeicher_overwrite
             .map(|v| *v == ButtonInOutState::In)
             .and_observer(
-                &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                &mut active_cockpit.equal_value(ActiveCockpit::A),
                 false,
                 false,
             )
-            .or_observer(
-                &mut active_cockpit
-                    .equal_value(ActiveCockpit::ADrive)
-                    .map(|v| !*v)
-                    .not(),
-                false,
-                false,
-            )
+            .or_observer(&mut drive_mode_a.not(), false, true)
             .delay_relay(0.3, 0.3)
             .write_to(&federspeicher);
+
+        if let Some(lm_federspeicher) =
+            backbone.get(backbone_types::CockpitLeuchtmelder::Federspeicher)
+        {
+            federspeicher
+                .and_observer(
+                    &mut active_cockpit.equal_value(ActiveCockpit::A),
+                    false,
+                    false,
+                )
+                .write_to(&lm_federspeicher);
+        }
     }
 }
 
@@ -220,28 +296,49 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
                 outside_light_switch
                     .map(|v| *v == OutsideLightSwitch::Abblend || *v == OutsideLightSwitch::Fern)
                     .and_observer(
-                        &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                        &mut active_cockpit.equal_value(ActiveCockpit::A),
                         false,
                         false,
                     )
                     .write_to(&abblend);
             }
 
-            let mut fern = outside_light_switch
+            let mut sw_fern = outside_light_switch
                 .map(|v| *v == OutsideLightSwitch::Fern)
                 .and_observer(
-                    &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                    &mut active_cockpit.equal_value(ActiveCockpit::A),
                     false,
                     false,
                 );
 
             if let Some(fern_outside) = backbone.get(backbone_types::Lights::Fern) {
-                fern.write_to(&fern_outside);
+                sw_fern.write_to(&fern_outside);
             }
 
             if let Some(lm_fernlicht) = backbone.get(backbone_types::CockpitLeuchtmelder::Fernlicht)
             {
-                fern.write_to(&lm_fernlicht);
+                sw_fern.write_to(&lm_fernlicht);
+            }
+
+            if let Some(mut drive_mode_a) = backbone.get(backbone_types::DriveMode) {
+                if let Some(rueckfahr) = backbone.get(backbone_types::Lights::Rueckfahr)
+                    && let Some(mut direction) = backbone.get(backbone_types::TractionDirection)
+                {
+                    direction
+                        .map(|d| *d == TractionDirection::Backward)
+                        .and_observer(&mut drive_mode_a, false, false)
+                        .write_to(&rueckfahr);
+                }
+
+                if let Some(mut traction_target) =
+                    backbone.get(backbone_types::TractionFloat::Target)
+                    && let Some(brems) = backbone.get(backbone_types::Lights::Brems)
+                {
+                    traction_target
+                        .map(|t| *t < 0.0)
+                        .and_observer(&mut drive_mode_a, false, false)
+                        .write_to(&brems);
+                }
             }
         }
 
@@ -264,28 +361,26 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
         switch_warnblinker
             .map(|v| *v == ButtonInOutState::Out)
             .if_then_o_v(
-                &mut active_cockpit
-                    .equal_value(ActiveCockpit::AActive)
-                    .if_then_o_o(
-                        &mut switch_blinker_front.map(|v| match *v {
-                            BlinkerSwitch::Left => BlinkerState::Left,
-                            BlinkerSwitch::Right => BlinkerState::Right,
+                &mut active_cockpit.equal_value(ActiveCockpit::A).if_then_o_o(
+                    &mut switch_blinker_front.map(|v| match *v {
+                        BlinkerSwitch::Left => BlinkerState::Left,
+                        BlinkerSwitch::Right => BlinkerState::Right,
+                        _ => BlinkerState::Off,
+                    }),
+                    &mut active_cockpit.equal_value(ActiveCockpit::B).if_then_o_v(
+                        &mut switch_blinker_back.map(|v| match *v {
+                            BlinkerSwitch::Left => BlinkerState::Right,
+                            BlinkerSwitch::Right => BlinkerState::Left,
                             _ => BlinkerState::Off,
                         }),
-                        &mut active_cockpit.equal_value(ActiveCockpit::B).if_then_o_v(
-                            &mut switch_blinker_back.map(|v| match *v {
-                                BlinkerSwitch::Left => BlinkerState::Right,
-                                BlinkerSwitch::Right => BlinkerState::Left,
-                                _ => BlinkerState::Off,
-                            }),
-                            BlinkerState::Off,
-                            false,
-                            BlinkerState::Off,
-                        ),
+                        BlinkerState::Off,
                         false,
                         BlinkerState::Off,
-                        BlinkerState::Off,
                     ),
+                    false,
+                    BlinkerState::Off,
+                    BlinkerState::Off,
+                ),
                 BlinkerState::Warning,
                 true,
                 BlinkerState::Off,
@@ -293,19 +388,19 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
             .write_to(&blinker_state);
     }
 
-    if let Some(mut blinker_lampe_rechts) = backbone.get(
-        backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
-    ) && let Some(lm_blinker_rechts) = backbone.get(
-        backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
-    ) {
+    if let Some(mut blinker_lampe_rechts) = backbone.get(backbone_types::Lights::BlinkerRechts)
+        && let Some(lm_blinker_rechts) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
+        )
+    {
         blinker_lampe_rechts.write_to(&lm_blinker_rechts);
     }
 
-    if let Some(mut blinker_lampe_links) = backbone.get(
-        backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
-    ) && let Some(lm_blinker_links) = backbone.get(
-        backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
-    ) {
+    if let Some(mut blinker_lampe_links) = backbone.get(backbone_types::Lights::BlinkerLinks)
+        && let Some(lm_blinker_links) = backbone.get(
+            backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
+        )
+    {
         blinker_lampe_links.write_to(&lm_blinker_links);
     }
 
@@ -425,52 +520,45 @@ fn misc(backbone: &mut VehicleBackbone) {
         klingel_button
             .or_observer(&mut mg_bremse, false, false)
             .and_observer(
-                &mut active_cockpit.equal_value(ActiveCockpit::AActive),
+                &mut active_cockpit.equal_value(ActiveCockpit::A),
                 false,
                 false,
             )
-            .filter(changed())
+            .filter(changed_init(false))
             .write_to(&klingel);
     }
 }
 
-pub fn create_other_observers(backbone: &mut VehicleBackbone) {
-    backbone.create_observer(backbone_types::ActiveCockpit);
-    backbone.create_observer(backbone_types::VehicleSpeed);
-    backbone.create_observer(backbone_types::SystemActive);
-    backbone.create_observer(backbone_types::Voltage);
-}
+fn z_position() {
+    let value = var_reader::<f32>("ZStellung_A")
+        .add_observer(&mut var_reader::<f32>("ZStellung_B"), 0.0, 0.0)
+        .multiply_value(4.0);
 
-pub fn init_interface(backbone: &mut VehicleBackbone) {
-    backbone
-        .get(backbone_types::VehicleSpeed)
-        .unwrap()
-        .call(&0.0);
-    backbone
-        .get(backbone_types::SystemActive)
-        .unwrap()
-        .call(&true);
-    backbone.get(backbone_types::Voltage).unwrap().call(&1.0);
-}
+    let damping_constant = Observer::<f32>::default();
 
-pub fn interface(backbone: &mut VehicleBackbone) {
-    if let Some(system_active) = backbone.get(backbone_types::SystemActive)
-        && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
-    {
-        active_cockpit
-            .map(|v| {
-                *v == ActiveCockpit::AActive
-                    || *v == ActiveCockpit::ADrive
-                    || *v == ActiveCockpit::B
-            })
-            .write_to(&system_active);
-    }
+    inertion_slider(
+        InertionSliderProperties::builder()
+            .friction(0.01)
+            .additional_force(value)
+            .damping_constant(damping_constant.clone())
+            .bumps([
+                Some(
+                    InertionSliderBumpProperties::builder()
+                        .position(-2.0)
+                        .reflection(0.5)
+                        .build(),
+                ),
+                Some(
+                    InertionSliderBumpProperties::builder()
+                        .position(2.0)
+                        .reflection(0.5)
+                        .build(),
+                ),
+            ])
+            .build(),
+    )
+    .position
+    .var_writer("ZStellung_C");
 
-    cockpit(backbone);
-    traction_control(backbone);
-    doors(backbone);
-    outside_lights(backbone);
-    blinker_lights(backbone);
-    inside_lights(backbone);
-    misc(backbone);
+    damping_constant.call(&2.0);
 }
