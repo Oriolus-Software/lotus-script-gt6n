@@ -7,27 +7,30 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [patch.'https://github.com/Oriolus-Software/LOTUS-Scripting']
-lotus-script = { path = "../../script-rs/lotus-script" }
-lotus-script-sys = { path = "../../script-rs/lotus-script-sys" }
-lotus-shared = { path = "../../script-rs/lotus-shared" }
-lotus-bindgen-macros = { path = "../../script-rs/lotus-bindgen-macros" }
+# lotus-script = { path = "../../script-rs/lotus-script" }
+# lotus-script-sys = { path = "../../script-rs/lotus-script-sys" }
+# lotus-shared = { path = "../../script-rs/lotus-shared" }
+# lotus-bindgen-macros = { path = "../../script-rs/lotus-bindgen-macros" }
 
 [patch.'https://github.com/Oriolus-Software/lotus-extra']
-lotus-extra = { path = "../../lotus-extra" }
+# lotus-extra = { path = "../../lotus-extra" }
 
 [dependencies]
-lotus-script = { git = "https://github.com/Oriolus-Software/LOTUS-Scripting.git" }
-lotus-extra = { path = "../../lotus-extra" }
-lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-features = false, features = [
-    "lotus",
-    "sync",
-    "macros",
-] }
+# lotus-script = { git = "https://github.com/Oriolus-Software/LOTUS-Scripting.git" }
+# lotus-extra = { path = "../../lotus-extra" }
+# lotus-rt = { git = "https://github.com/Oriolus-Software/lotus-rt", default-features = false, features = [
+#     "lotus",
+#     "sync",
+#     "macros",
+# ] }
 # lotus-rt-extra = { git = "https://github.com/Oriolus-Software/lotus-rt-extra" }
 lotus-rt-extra = { path = "../lotus-rt-extra" }
 bon = "3"
 serde = { version = "1.0.219", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
+lotus-rt = "0.1.0"
+lotus-extra = "0.2.0"
+lotus-script = "0.7.3"
 
 [profile.release]
 opt-level = 3
