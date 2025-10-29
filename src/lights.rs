@@ -1,4 +1,4 @@
-use lotus_extra::messages;
+use lotus_extra::{messages, vehicle::CockpitSide};
 use lotus_rt_extra::{
     backbone::VehicleBackbone, backbone_types, sounds::StartStopSoundProperties,
     timers::BlinkRelayProperties,
@@ -19,7 +19,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::CockpitMain),
+            &mut backbone.create_observer(backbone_types::LightsTram::Cockpit(CockpitSide::A)),
             0.0,
             false,
         )
@@ -34,7 +34,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
         .var_writer("A_CP_FstBelBegleiter");
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Instrumente),
+            &mut backbone.create_observer(backbone_types::LightsTram::Instruments(CockpitSide::A)),
             0.0,
             false,
         )
@@ -42,7 +42,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Fahrgastraum),
+            &mut backbone.create_observer(backbone_types::LightsTram::Cabin),
             0.0,
             false,
         )
@@ -50,7 +50,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Stand),
+            &mut backbone.create_observer(backbone_types::LightsTram::Parking(CockpitSide::A)),
             0.0,
             false,
         )
@@ -69,7 +69,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Abblend),
+            &mut backbone.create_observer(backbone_types::LightsTram::LowBeam(CockpitSide::A)),
             0.0,
             false,
         )
@@ -77,7 +77,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Fern),
+            &mut backbone.create_observer(backbone_types::LightsTram::HighBeam(CockpitSide::A)),
             0.0,
             false,
         )
@@ -85,7 +85,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Rueck),
+            &mut backbone.create_observer(backbone_types::LightsTram::Tail(CockpitSide::A)),
             0.0,
             false,
         )
@@ -93,7 +93,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Rueckfahr),
+            &mut backbone.create_observer(backbone_types::LightsTram::Reverse(CockpitSide::A)),
             0.0,
             false,
         )
@@ -101,14 +101,14 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_special_types::Lights::Brems),
+            &mut backbone.create_observer(backbone_types::LightsTram::Brake(CockpitSide::A)),
             0.0,
             false,
         )
         .var_writer("Bremslicht");
 
     let mut blinker_lights_state = backbone
-        .create_observer(backbone_special_types::LightBlinkerState)
+        .create_observer(backbone_types::LightBlinkerState)
         .blinker(
             BlinkRelayProperties::builder()
                 .interval(BLINKER_ON_TIME + BLINKER_OFF_TIME)
@@ -120,19 +120,19 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     blinker_lights_state
         .left
-        .write_to(&backbone.create_observer(backbone_special_types::Lights::BlinkerLinks))
+        .write_to(&backbone.create_observer(backbone_types::LightsTram::BlinkerLeft))
         .to_float()
         .var_writer("BlinkerLeft");
 
     blinker_lights_state
         .right
-        .write_to(&backbone.create_observer(backbone_special_types::Lights::BlinkerRechts))
+        .write_to(&backbone.create_observer(backbone_types::LightsTram::BlinkerRight))
         .to_float()
         .var_writer("BlinkerRight");
 
-    blinker_lights_state
-        .warning
-        .write_to(&backbone.create_observer(backbone_special_types::Lights::LmWarnblinker));
+    blinker_lights_state.warning.write_to(
+        &backbone.create_observer(backbone_types::LightsTram::LmWarningLight(CockpitSide::A)),
+    );
 
     blinker_lights_state.blinker_relay.start_stop_sound(
         StartStopSoundProperties::builder()

@@ -1,3 +1,4 @@
+use lotus_extra::vehicle::TractionDirection;
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
     backbone_types,
@@ -14,20 +15,10 @@ use lotus_rt_extra::{
 };
 use lotus_script::{log, vehicle::Axle};
 
-use crate::backbone_special_types;
-
 const VMAX: f32 = 60.0 / 3.6;
 const VMAX_BACK: f32 = 15.0 / 3.6;
 const V_EBRAKE_LIMIT: f32 = 5.0 / 3.6;
 const MAXBRAKEFORCE_N: f32 = 16_000.0;
-
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
-pub enum TractionDirection {
-    Forward,
-    #[default]
-    Neutral,
-    Backward,
-}
 
 #[derive(Clone)]
 pub struct TractionUnit {
@@ -37,15 +28,12 @@ pub struct TractionUnit {
 }
 
 pub fn add_traction(backbone: &mut VehicleBackbone) {
-    let mut direction = backbone.create_observer(backbone_special_types::TractionDirection);
-    let mut target = backbone.create_observer(backbone_special_types::TractionFloat::Target);
-    let mut federspeicher =
-        backbone.create_observer(backbone_special_types::TractionBool::Federspeicher);
+    let mut direction = backbone.create_observer(backbone_types::ReverserState);
+    let mut target = backbone.create_observer(backbone_types::TractionFloat::Target);
+    let mut federspeicher = backbone.create_observer(backbone_types::TractionBool::ParkingBrake);
     let mut mg: Observer<bool> =
-        backbone.create_observer(backbone_special_types::TractionBool::MgBremse);
-    let mut speed: Observer<f32> =
-        backbone.create_observer(backbone_special_types::TractionFloat::Speed);
-    let mut sanden = backbone.create_observer(backbone_special_types::TractionBool::Sanden);
+        backbone.create_observer(backbone_types::TractionBool::RailBrake(0));
+    let mut sanden = backbone.create_observer(backbone_types::TractionBool::Sand);
 
     let traction_mode = Observer::<TractionUnitMode>::default();
 
@@ -326,7 +314,7 @@ pub fn add_traction(backbone: &mut VehicleBackbone) {
         1.0,
         &mut condition_brake_mode.if_then_o_v(
             &mut target_traction.zip(
-                &mut speed,
+                &mut ref_speed,
                 |(traction, speed), next| {
                     next(&((*traction).abs() * (1.0 - (*speed).abs() / V_EBRAKE_LIMIT).max(0.0)))
                 },

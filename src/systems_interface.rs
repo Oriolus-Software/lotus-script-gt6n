@@ -1,4 +1,4 @@
-use lotus_extra::vehicle::CockpitSide;
+use lotus_extra::vehicle::{CockpitSide, TractionDirection};
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
     backbone_types,
@@ -18,7 +18,6 @@ use crate::{
     cockpit_types::{
         BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
     },
-    traction::TractionDirection,
 };
 
 pub fn create_other_observers(backbone: &mut VehicleBackbone) {
@@ -151,23 +150,23 @@ fn traction_control(backbone: &mut VehicleBackbone) {
     if let Some(mut ready) = backbone.get(backbone_types::SystemsReady)
         && let Some(mut drive_mode) = backbone.get(backbone_types::DriveMode)
         && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
-        && let Some(direction) = backbone.get(backbone_special_types::TractionDirection)
+        && let Some(direction) = backbone.get(backbone_types::ReverserState)
         && let Some(mut richtungswender) = backbone.get(backbone_special_types::Richtungswender)
         && let Some(mut cockpit_b) = backbone.get(
             backbone_special_types::CockpitInputBools::Schloss(CockpitSide::B),
         )
-        && let Some(traction_target) = backbone.get(backbone_special_types::TractionFloat::Target)
+        && let Some(traction_target) = backbone.get(backbone_types::TractionFloat::Target)
         && let Some(mut sollwertgeber) =
             backbone.get(backbone_special_types::CockpitInputFloats::Sollwertgeber)
         && let Some(mut rear_fahrschalter) = backbone.get(backbone_special_types::BackDriveSwitch)
         && let Some(mut btn_mg_bremse) =
             backbone.get(backbone_special_types::CockpitInputBools::MgBremse)
-        && let Some(mg_target) = backbone.get(backbone_special_types::TractionBool::MgBremse)
-        && let Some(mut federspeicher) =
-            backbone.get(backbone_special_types::TractionBool::Federspeicher)
+        // all bogie rail brakes are handled the same way
+        && let Some(mg_target) = backbone.get(backbone_types::TractionBool::RailBrake(0))
+        && let Some(mut federspeicher) = backbone.get(backbone_types::TractionBool::ParkingBrake)
         && let Some(mut btn_federspeicher_overwrite) =
             backbone.get(backbone_special_types::CockpitInputInOutState::FederspeicherOverwrite)
-        && let Some(sanden) = backbone.get(backbone_special_types::TractionBool::Sanden)
+        && let Some(sanden) = backbone.get(backbone_types::TractionBool::Sand)
         && let Some(mut btn_sanden) =
             backbone.get(backbone_special_types::CockpitInputBools::Sanden)
     {
@@ -289,9 +288,10 @@ fn traction_control(backbone: &mut VehicleBackbone) {
 fn outside_lights(backbone: &mut VehicleBackbone) {
     if let Some(mut outside_light_switch) = backbone.get(backbone_special_types::OutsideLightSwitch)
     {
-        if let Some(stand) = backbone.get(backbone_special_types::Lights::Stand)
-            && let Some(rueck) = backbone.get(backbone_special_types::Lights::Rueck)
-            && let Some(instrumente) = backbone.get(backbone_special_types::Lights::Instrumente)
+        if let Some(stand) = backbone.get(backbone_types::LightsTram::Parking(CockpitSide::A))
+            && let Some(rueck) = backbone.get(backbone_types::LightsTram::Tail(CockpitSide::A))
+            && let Some(instrumente) =
+                backbone.get(backbone_types::LightsTram::Instruments(CockpitSide::A))
         {
             outside_light_switch
                 .not_equal_value(OutsideLightSwitch::Off)
@@ -301,7 +301,8 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
         }
 
         if let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit) {
-            if let Some(abblend) = backbone.get(backbone_special_types::Lights::Abblend) {
+            if let Some(abblend) = backbone.get(backbone_types::LightsTram::LowBeam(CockpitSide::A))
+            {
                 outside_light_switch
                     .map(|v| *v == OutsideLightSwitch::Abblend || *v == OutsideLightSwitch::Fern)
                     .and_observer(
@@ -320,7 +321,9 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
                     false,
                 );
 
-            if let Some(fern_outside) = backbone.get(backbone_special_types::Lights::Fern) {
+            if let Some(fern_outside) =
+                backbone.get(backbone_types::LightsTram::HighBeam(CockpitSide::A))
+            {
                 sw_fern.write_to(&fern_outside);
             }
 
@@ -331,9 +334,9 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
             }
 
             if let Some(mut drive_mode_a) = backbone.get(backbone_types::DriveMode) {
-                if let Some(rueckfahr) = backbone.get(backbone_special_types::Lights::Rueckfahr)
-                    && let Some(mut direction) =
-                        backbone.get(backbone_special_types::TractionDirection)
+                if let Some(rueckfahr) =
+                    backbone.get(backbone_types::LightsTram::Reverse(CockpitSide::A))
+                    && let Some(mut direction) = backbone.get(backbone_types::ReverserState)
                 {
                     direction
                         .map(|d| *d == TractionDirection::Backward)
@@ -342,8 +345,9 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
                 }
 
                 if let Some(mut traction_target) =
-                    backbone.get(backbone_special_types::TractionFloat::Target)
-                    && let Some(brems) = backbone.get(backbone_special_types::Lights::Brems)
+                    backbone.get(backbone_types::TractionFloat::Target)
+                    && let Some(brems) =
+                        backbone.get(backbone_types::LightsTram::Brake(CockpitSide::A))
                 {
                     traction_target
                         .map(|t| *t < 0.0)
@@ -356,7 +360,7 @@ fn outside_lights(backbone: &mut VehicleBackbone) {
 }
 
 fn blinker_lights(backbone: &mut VehicleBackbone) {
-    if let Some(blinker_state) = backbone.get(backbone_special_types::LightBlinkerState)
+    if let Some(blinker_state) = backbone.get(backbone_types::LightBlinkerState)
         && let Some(mut switch_warnblinker) =
             backbone.get(backbone_special_types::CockpitInputInOutState::Warnblinker)
         && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
@@ -399,8 +403,7 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
             .write_to(&blinker_state);
     }
 
-    if let Some(mut blinker_lampe_rechts) =
-        backbone.get(backbone_special_types::Lights::BlinkerRechts)
+    if let Some(mut blinker_lampe_rechts) = backbone.get(backbone_types::LightsTram::BlinkerRight)
         && let Some(lm_blinker_rechts) = backbone.get(
             backbone_special_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
         )
@@ -408,8 +411,7 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
         blinker_lampe_rechts.write_to(&lm_blinker_rechts);
     }
 
-    if let Some(mut blinker_lampe_links) =
-        backbone.get(backbone_special_types::Lights::BlinkerLinks)
+    if let Some(mut blinker_lampe_links) = backbone.get(backbone_types::LightsTram::BlinkerLeft)
         && let Some(lm_blinker_links) = backbone.get(
             backbone_special_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
         )
@@ -420,13 +422,12 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
     if let Some(lm_warnblinker) =
         backbone.get(backbone_special_types::CockpitLeuchtmelder::Warnblinker)
         && let Some(mut warnblinker_light_lm) =
-            backbone.get(backbone_special_types::Lights::LmWarnblinker)
+            backbone.get(backbone_types::LightsTram::LmWarningLight(CockpitSide::A))
     {
         warnblinker_light_lm.write_to(&lm_warnblinker);
     }
 
-    if let Some(mut blinker_lampe_rechts) =
-        backbone.get(backbone_special_types::Lights::BlinkerRechts)
+    if let Some(mut blinker_lampe_rechts) = backbone.get(backbone_types::LightsTram::BlinkerRight)
         && let Some(lm_blinker_rechts) = backbone.get(
             backbone_special_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::B),
         )
@@ -434,8 +435,7 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
         blinker_lampe_rechts.write_to(&lm_blinker_rechts);
     }
 
-    if let Some(mut blinker_lampe_links) =
-        backbone.get(backbone_special_types::Lights::BlinkerLinks)
+    if let Some(mut blinker_lampe_links) = backbone.get(backbone_types::LightsTram::BlinkerLeft)
         && let Some(lm_blinker_links) = backbone.get(
             backbone_special_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::B),
         )
@@ -447,7 +447,8 @@ fn blinker_lights(backbone: &mut VehicleBackbone) {
 fn inside_lights(backbone: &mut VehicleBackbone) {
     if let Some(mut switch_fahrerraum) =
         backbone.get(backbone_special_types::CockpitInputInts::BeleuchtungFahrerraum)
-        && let Some(light_fahrerraum) = backbone.get(backbone_special_types::Lights::CockpitMain)
+        && let Some(light_fahrerraum) =
+            backbone.get(backbone_types::LightsTram::Cockpit(CockpitSide::A))
         && let Some(light_begleiter) =
             backbone.get(backbone_special_types::Lights::CockpitBegleiter)
     {
@@ -461,7 +462,7 @@ fn inside_lights(backbone: &mut VehicleBackbone) {
 
     if let Some(mut switch_fahrgastraum) =
         backbone.get(backbone_special_types::CockpitInputBools::BeleuchtungFahrgastraum)
-        && let Some(light_fahrgastraum) = backbone.get(backbone_special_types::Lights::Fahrgastraum)
+        && let Some(light_fahrgastraum) = backbone.get(backbone_types::LightsTram::Cabin)
     {
         switch_fahrgastraum.write_to(&light_fahrgastraum);
     }

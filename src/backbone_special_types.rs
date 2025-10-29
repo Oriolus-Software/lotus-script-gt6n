@@ -4,15 +4,10 @@ use lotus_rt_extra::{
     cockpit_simple::{ButtonInOutState, ButtonTwoSidedSpringLoadedState},
     doors::DoorControlMode,
     observer::Observer,
-    vehicle_systems::BlinkerState,
 };
 
-use crate::{cockpit_types, traction};
+use crate::cockpit_types;
 use strum::EnumIter;
-
-// ================================================================================
-// General
-// ================================================================================
 
 // ================================================================================
 // Cockpit Inputs
@@ -151,63 +146,11 @@ impl TypedMapKey for BackDriveSwitch {
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub enum Lights {
-    Voltage,
-    Fahrgastraum,
-    Stand,
-    Abblend,
-    Fern,
-    Rueck,
-    Rueckfahr,
-    Brems,
-    BlinkerRechts,
-    BlinkerLinks,
-    LmWarnblinker,
-    CockpitMain,
     CockpitBegleiter,
-    Instrumente,
 }
 
 impl TypedMapKey for Lights {
     type Value = Observer<bool>;
-}
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub struct LightBlinkerState;
-
-impl TypedMapKey for LightBlinkerState {
-    type Value = Observer<BlinkerState>;
-}
-
-// ================================================================================
-// Traction
-// ================================================================================
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub enum TractionBool {
-    Federspeicher,
-    MgBremse,
-    Sanden,
-}
-
-impl TypedMapKey for TractionBool {
-    type Value = Observer<bool>;
-}
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub enum TractionFloat {
-    Target,
-    Speed,
-}
-
-impl TypedMapKey for TractionFloat {
-    type Value = Observer<f32>;
-}
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub struct TractionDirection;
-
-impl TypedMapKey for TractionDirection {
-    type Value = Observer<traction::TractionDirection>;
 }
 
 // ================================================================================
