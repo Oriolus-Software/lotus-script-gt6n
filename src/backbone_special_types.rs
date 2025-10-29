@@ -158,27 +158,10 @@ impl TypedMapKey for Lights {
 // ================================================================================
 
 #[derive(Hash, PartialEq, Eq)]
-pub struct DoorsReleased;
-
-impl TypedMapKey for DoorsReleased {
-    type Value = Observer<bool>;
-}
-
-#[derive(Hash, PartialEq, Eq)]
 pub struct Door1Force;
 
 impl TypedMapKey for Door1Force {
     type Value = Observer<DoorControlMode>;
-}
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub enum DoorRequest {
-    DoorLeft(i8),
-    DoorRight(i8),
-}
-
-impl TypedMapKey for DoorRequest {
-    type Value = Observer<bool>;
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -188,36 +171,16 @@ impl TypedMapKey for OverrideNoWarning {
     type Value = Observer<bool>;
 }
 
-#[derive(Hash, PartialEq, Eq)]
-pub struct DoorsAllClosed;
-
-impl TypedMapKey for DoorsAllClosed {
-    type Value = Observer<bool>;
-}
-
 // ================================================================================
 // Passenger Elements
 // ================================================================================
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub enum PassengerDoorButtons {
-    DoorRight(i8),
-    DoorLeft(i8),
+    DoorRight(u8),
+    DoorLeft(u8),
 }
 
 impl TypedMapKey for PassengerDoorButtons {
-    type Value = Observer<bool>;
-}
-
-// ================================================================================
-// Misc
-// ================================================================================
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub enum MiscBools {
-    Klingel,
-}
-
-impl TypedMapKey for MiscBools {
     type Value = Observer<bool>;
 }

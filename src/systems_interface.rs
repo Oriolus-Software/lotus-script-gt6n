@@ -469,9 +469,9 @@ fn inside_lights(backbone: &mut VehicleBackbone) {
 }
 fn doors(backbone: &mut VehicleBackbone) {
     if let Some(mut door_switch) = backbone.get(backbone_special_types::DoorSwitch)
-        && let Some(mut released) = backbone.get(backbone_special_types::DoorsReleased)
+        && let Some(mut released) = backbone.get(backbone_types::DoorsReleased::Right)
         && let Some(mut speed) = backbone.get(backbone_types::VehicleSpeed)
-        && let Some(mut all_closed) = backbone.get(backbone_special_types::DoorsAllClosed)
+        && let Some(mut all_closed) = backbone.get(backbone_types::DoorsThisVehicleAllClosed)
         && let Some(door_1_override) = backbone.get(backbone_special_types::Door1Force)
     {
         let mut switch_released = door_switch.binary(
@@ -492,10 +492,9 @@ fn doors(backbone: &mut VehicleBackbone) {
 
         for i in 0..4 {
             let passenger_door_button = backbone.get(
-                backbone_special_types::PassengerDoorButtons::DoorRight(i as i8),
+                backbone_special_types::PassengerDoorButtons::DoorRight(i as u8),
             );
-            let door_request =
-                backbone.get(backbone_special_types::DoorRequest::DoorRight(i as i8));
+            let door_request = backbone.get(backbone_types::DoorRequest::DoorRight(i as u8));
 
             if let Some(door_request) = door_request {
                 passenger_door_button
@@ -548,7 +547,7 @@ fn doors(backbone: &mut VehicleBackbone) {
 }
 
 fn misc(backbone: &mut VehicleBackbone) {
-    if let Some(klingel) = backbone.get(backbone_special_types::MiscBools::Klingel)
+    if let Some(klingel) = backbone.get(backbone_types::MiscBools::Bell(CockpitSide::A))
         && let Some(mut active_cockpit) = backbone.get(backbone_types::ActiveCockpit)
         && let Some(mut klingel_button) = backbone.get(
             backbone_special_types::CockpitInputBools::Klingel(CockpitSide::A),

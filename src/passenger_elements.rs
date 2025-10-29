@@ -13,7 +13,7 @@ use crate::backbone_special_types;
 pub fn add_passenger_elements(backbone: &mut VehicleBackbone) {
     (0..4).for_each(|i| {
         backbone.insert(
-            backbone_special_types::PassengerDoorButtons::DoorRight(i as i8),
+            backbone_special_types::PassengerDoorButtons::DoorRight(i as u8),
             timed_button(
                 TimedButtonProperties::builder()
                     .input_event(format!("DoorButton{}", i + 1))

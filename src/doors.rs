@@ -12,9 +12,7 @@ use lotus_rt_extra::{
     timers::BlinkRelayProperties,
 };
 
-use crate::backbone_special_types::{
-    Door1Force, DoorRequest, DoorsAllClosed, DoorsReleased, OverrideNoWarning,
-};
+use crate::backbone_special_types::{Door1Force, OverrideNoWarning};
 
 const PLUG_RADIUS: f32 = 0.06;
 const SHIFT_DISTANCE: f32 = 0.58;
@@ -44,13 +42,13 @@ pub struct DoorsWithController {
 
 pub fn add_doors(backbone: &mut VehicleBackbone) {
     let ready = backbone.get(backbone_types::SystemsReady).unwrap();
-    let released = backbone.create_observer(DoorsReleased);
+    let released = backbone.create_observer(backbone_types::DoorsReleased::Right);
     let door_1_force = backbone.create_observer(Door1Force);
 
     let mut requests = vec![];
 
     for i in 0..4 {
-        requests.push(backbone.create_observer(DoorRequest::DoorRight(i as i8)));
+        requests.push(backbone.create_observer(backbone_types::DoorRequest::DoorRight(i as u8)));
     }
 
     let door_with_controller =
@@ -139,7 +137,10 @@ pub fn add_doors(backbone: &mut VehicleBackbone) {
         .all(|v| v),
     };
 
-    backbone.insert(DoorsAllClosed, state.all_closed.clone());
+    backbone.insert(
+        backbone_types::DoorsThisVehicleAllClosed,
+        state.all_closed.clone(),
+    );
 
     state
         .door_1_override

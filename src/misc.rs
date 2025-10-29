@@ -1,10 +1,11 @@
-use lotus_rt_extra::{backbone::VehicleBackbone, sounds::StartLoopStopSoundProperties};
-
-use crate::backbone_special_types;
+use lotus_extra::vehicle::CockpitSide;
+use lotus_rt_extra::{
+    backbone::VehicleBackbone, backbone_types, sounds::StartLoopStopSoundProperties,
+};
 
 pub fn add_misc(backbone: &mut VehicleBackbone) {
     backbone
-        .create_observer(backbone_special_types::MiscBools::Klingel)
+        .create_observer(backbone_types::MiscBools::Bell(CockpitSide::A))
         .start_loop_stop_sound(
             StartLoopStopSoundProperties::builder()
                 .loop_sound("Snd_Klingel_Loop".to_string())
