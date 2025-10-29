@@ -1,5 +1,6 @@
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
+    backbone_types,
     doors::{
         DoorControlMode, DoorControlProperties, DoorControlState,
         DoorWarningOutsideRelayWithStopOnSpeedProperties, ElectricSlidingPlugDoorPairPositionState,
@@ -11,8 +12,8 @@ use lotus_rt_extra::{
     timers::BlinkRelayProperties,
 };
 
-use crate::backbone_types::{
-    self, Door1Force, DoorRequest, DoorsAllClosed, DoorsReleased, OverrideNoWarning, SystemActive,
+use crate::backbone_special_types::{
+    Door1Force, DoorRequest, DoorsAllClosed, DoorsReleased, OverrideNoWarning,
 };
 
 const PLUG_RADIUS: f32 = 0.06;
@@ -42,7 +43,7 @@ pub struct DoorsWithController {
 }
 
 pub fn add_doors(backbone: &mut VehicleBackbone) {
-    let system_active = backbone.get(SystemActive).unwrap();
+    let ready = backbone.get(backbone_types::SystemsReady).unwrap();
     let released = backbone.create_observer(DoorsReleased);
     let door_1_force = backbone.create_observer(Door1Force);
 
@@ -89,7 +90,7 @@ pub fn add_doors(backbone: &mut VehicleBackbone) {
             let control_properties = DoorControlProperties::builder()
                 .request_time(6.0)
                 .warning_time(2.0)
-                .set_system_active(system_active.clone())
+                .set_system_active(ready.clone())
                 .set_request(requests[door_number].clone())
                 .set_released(released.clone())
                 .set_door_closed(door.position.clone());

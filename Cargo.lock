@@ -285,6 +285,7 @@ dependencies = [
  "lotus-script",
  "num-traits",
  "serde",
+ "strum",
  "typedmap",
 ]
 

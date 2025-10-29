@@ -1,5 +1,5 @@
 use crate::{
-    backbone_types,
+    backbone_special_types,
     cockpit_types::{
         BackDriveSwitch, BlinkerSwitch, DoorSwitch, OutsideLightSwitch, RichtungswenderState,
     },
@@ -7,6 +7,7 @@ use crate::{
 use lotus_extra::vehicle::CockpitSide;
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
+    backbone_types,
     cockpit_simple::{
         ButtonInOutProperties, ButtonProperties, ButtonTwoSidedSpringLoadedProperties,
         StepSwitchInputToggle, StepSwitchProperties, SwitchProperties, button_inout, std_button,
@@ -25,8 +26,8 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     // Inputs cockpit A ==================================================================================
 
     let mut voltage_r = backbone
-        .get(backbone_types::Voltage)
-        .expect("Voltage not found!")
+        .get(backbone_types::ControlVoltage)
+        .expect("ControlVoltage not found!")
         .clone();
 
     let sollwertgeber_lock = Observer::<bool>::default();
@@ -34,7 +35,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     let schloss_lock = Observer::<bool>::default();
 
     backbone.insert(
-        backbone_types::CockpitInputBools::SchlossLock(CockpitSide::A),
+        backbone_special_types::CockpitInputBools::SchlossLock(CockpitSide::A),
         Observer::<bool>::default(),
     );
 
@@ -49,7 +50,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     );
 
     backbone.insert(
-        backbone_types::CockpitInputBools::Schloss(CockpitSide::A),
+        backbone_special_types::CockpitInputBools::Schloss(CockpitSide::A),
         schloss.clone(),
     );
 
@@ -68,10 +69,13 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         None::<fn() -> RichtungswenderState>,
     );
 
-    backbone.insert(backbone_types::Richtungswender, richtungswender.clone());
+    backbone.insert(
+        backbone_special_types::Richtungswender,
+        richtungswender.clone(),
+    );
 
     backbone.insert(
-        backbone_types::CockpitInputFloats::Sollwertgeber,
+        backbone_special_types::CockpitInputFloats::Sollwertgeber,
         sollwertgeber(
             SollwertgeberProperties::builder()
                 .animation("A_CP_Sollwertgeber")
@@ -110,7 +114,9 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     //----
 
     backbone.insert(
-        backbone_types::CockpitInputBools::Sifa(backbone_types::SifaPosition::Sollwertgeber),
+        backbone_special_types::CockpitInputBools::Sifa(
+            backbone_special_types::SifaPosition::Sollwertgeber,
+        ),
         std_button(
             ButtonProperties::builder()
                 .input_event(InputEvent::new("HoldToRun", 0))
@@ -122,31 +128,33 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     );
 
     backbone.insert(
-        backbone_types::CockpitInputBools::Sanden,
+        backbone_special_types::CockpitInputBools::Sanden,
         gt6n_button("Sanding", "A_CP_TS_Sanden", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::MgBremse,
+        backbone_special_types::CockpitInputBools::MgBremse,
         gt6n_button("RailBrake", "A_CP_TS_MgBremse", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Klingel(CockpitSide::A),
+        backbone_special_types::CockpitInputBools::Klingel(CockpitSide::A),
         gt6n_button("Bell1", "A_CP_TS_Klingel", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Kinderwagen,
+        backbone_special_types::CockpitInputBools::Kinderwagen,
         gt6n_button("ResetBuggy", "A_CP_TS_KiWa", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Rollstuhl,
+        backbone_special_types::CockpitInputBools::Rollstuhl,
         gt6n_button("ResetWheelchair", "A_CP_TS_Rolli", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Sifa(backbone_types::SifaPosition::Button),
+        backbone_special_types::CockpitInputBools::Sifa(
+            backbone_special_types::SifaPosition::Button,
+        ),
         gt6n_button("HoldToRun_Btn", "A_CP_TS_SiFa", CockpitSide::A),
     );
     backbone.insert(
-        backbone_types::CockpitInputTwoSidedSpringLoadedState::Pantograph,
+        backbone_special_types::CockpitInputTwoSidedSpringLoadedState::Pantograph,
         switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus(InputEvent::new("PantographDn", 0))
@@ -158,7 +166,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputTwoSidedSpringLoadedState::Hauptschalter,
+        backbone_special_types::CockpitInputTwoSidedSpringLoadedState::Hauptschalter,
         switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus(InputEvent::new("HighVoltageMainSwitchOff", 0))
@@ -171,7 +179,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     );
 
     backbone.insert(
-        backbone_types::CockpitInputInOutState::FederspeicherOverwrite,
+        backbone_special_types::CockpitInputInOutState::FederspeicherOverwrite,
         button_inout(
             ButtonInOutProperties::builder()
                 .input_event(InputEvent::new("FspDeactiveToggle", 0))
@@ -183,7 +191,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     );
 
     backbone.insert(
-        backbone_types::OutsideLightSwitch,
+        backbone_special_types::OutsideLightSwitch,
         step_switch::<OutsideLightSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("FrontLightMinus", 0))
@@ -198,7 +206,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::BlinkerSwitch::Sw(CockpitSide::A),
+        backbone_special_types::BlinkerSwitch::Sw(CockpitSide::A),
         step_switch::<BlinkerSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("IndicatorToLeft", 0))
@@ -227,7 +235,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputInOutState::Warnblinker,
+        backbone_special_types::CockpitInputInOutState::Warnblinker,
         button_inout(
             ButtonInOutProperties::builder()
                 .input_event(InputEvent::new("IndicatorWarn", 0))
@@ -239,7 +247,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     );
 
     backbone.insert(
-        backbone_types::CockpitInputBools::BeleuchtungFahrgastraum,
+        backbone_special_types::CockpitInputBools::BeleuchtungFahrgastraum,
         switch(
             SwitchProperties::builder()
                 .input_event_toggle(InputEvent::new("CabinLightToggle", 0))
@@ -250,7 +258,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputInts::BeleuchtungFahrerraum,
+        backbone_special_types::CockpitInputInts::BeleuchtungFahrerraum,
         step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("CockpitLightMinus", 0))
@@ -272,7 +280,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::DoorSwitch,
+        backbone_special_types::DoorSwitch,
         step_switch::<DoorSwitch>(
             StepSwitchProperties::builder()
                 .input_event_plus(InputEvent::new("DoorsPlus", 0))
@@ -298,7 +306,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputInts::Scheibenwischer,
+        backbone_special_types::CockpitInputInts::Scheibenwischer,
         step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("WiperMinus", 0))
@@ -313,7 +321,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputTwoSidedSpringLoadedState::Sprechstelle,
+        backbone_special_types::CockpitInputTwoSidedSpringLoadedState::Sprechstelle,
         switch_twosided_springloaded(
             ButtonTwoSidedSpringLoadedProperties::builder()
                 .input_event_minus(InputEvent::new("SprechstelleClear", 0))
@@ -325,7 +333,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputInts::Zugbildung,
+        backbone_special_types::CockpitInputInts::Zugbildung,
         step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("ZugbildungMinus", 0))
@@ -343,7 +351,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     // Add cockpit B Inputs ==================================================================================
 
     backbone.insert(
-        backbone_types::CockpitInputBools::Schloss(CockpitSide::B),
+        backbone_special_types::CockpitInputBools::Schloss(CockpitSide::B),
         switch(
             SwitchProperties::builder()
                 .input_event_on(InputEvent::new("Key_Reverser_L", 1))
@@ -355,7 +363,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::BackDriveSwitch,
+        backbone_special_types::BackDriveSwitch,
         step_switch(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("ThrottleLeaverPlus", 1))
@@ -389,11 +397,11 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Klingel(CockpitSide::B),
+        backbone_special_types::CockpitInputBools::Klingel(CockpitSide::B),
         gt6n_button("Bell1", "B_CP_TS_Klingel", CockpitSide::B),
     );
     backbone.insert(
-        backbone_types::BlinkerSwitch::Sw(CockpitSide::B),
+        backbone_special_types::BlinkerSwitch::Sw(CockpitSide::B),
         step_switch::<BlinkerSwitch>(
             StepSwitchProperties::builder()
                 .input_event_minus(InputEvent::new("IndicatorToLeft", 1))
@@ -418,14 +426,14 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         ),
     );
     backbone.insert(
-        backbone_types::CockpitInputBools::Tuer(CockpitSide::B, 4),
+        backbone_special_types::CockpitInputBools::Tuer(CockpitSide::B, 4),
         gt6n_button("Door4Toggle", "B_CP_TS_Tuer4", CockpitSide::B),
     );
 
     // LMs A/B ==================================================================================
 
     let mut std_lm =
-        |node_id: backbone_types::CockpitLeuchtmelder, variable: &str| -> Observer<bool> {
+        |node_id: backbone_special_types::CockpitLeuchtmelder, variable: &str| -> Observer<bool> {
             let mut value = backbone.create_observer(node_id);
             value
                 .or_observer(&mut lm_check, false, false)
@@ -436,75 +444,78 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
         };
 
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Federspeicher,
+        backbone_special_types::CockpitLeuchtmelder::Federspeicher,
         "A_LM_FSp",
     );
 
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Fernlicht,
+        backbone_special_types::CockpitLeuchtmelder::Fernlicht,
         "A_LM_Fernlicht",
     );
 
     std_lm(
-        backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
+        backbone_special_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::A),
         "A_LM_BlinkerRechts",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
+        backbone_special_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::A),
         "A_LM_BlinkerLinks",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Warnblinker,
+        backbone_special_types::CockpitLeuchtmelder::Warnblinker,
         "A_LM_Warnblinken",
     );
 
     let mut lm_doors_closed = std_lm(
-        backbone_types::CockpitLeuchtmelder::DoorsClosed,
+        backbone_special_types::CockpitLeuchtmelder::DoorsClosed,
         "A_LM_DoorsClosed",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Haltewunsch,
+        backbone_special_types::CockpitLeuchtmelder::Haltewunsch,
         "A_LM_Haltewunsch",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Kinderwagen,
+        backbone_special_types::CockpitLeuchtmelder::Kinderwagen,
         "A_LM_Kinderwagen",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Rollstuhl,
+        backbone_special_types::CockpitLeuchtmelder::Rollstuhl,
         "A_LM_Rollstuhl",
     );
 
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Schienenbremse,
+        backbone_special_types::CockpitLeuchtmelder::Schienenbremse,
         "A_LM_Schienenbremse",
     );
-    std_lm(backbone_types::CockpitLeuchtmelder::Sifa, "A_LM_Sifa");
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Sprechstelle,
+        backbone_special_types::CockpitLeuchtmelder::Sifa,
+        "A_LM_Sifa",
+    );
+    std_lm(
+        backbone_special_types::CockpitLeuchtmelder::Sprechstelle,
         "A_LM_Sprechstelle",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Hauptschalter,
+        backbone_special_types::CockpitLeuchtmelder::Hauptschalter,
         "A_LM_Hauptschalter",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Notstart,
+        backbone_special_types::CockpitLeuchtmelder::Notstart,
         "A_LM_Notstart",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::Notablegen,
+        backbone_special_types::CockpitLeuchtmelder::Notablegen,
         "A_LM_Notablegen",
     );
 
     lm_doors_closed.trigger_sound("Snd_CP_A_DoorsClosed");
 
     std_lm(
-        backbone_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::B),
+        backbone_special_types::CockpitLeuchtmelder::BlinkerRechts(CockpitSide::B),
         "B_LM_BlinkerRechts",
     );
     std_lm(
-        backbone_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::B),
+        backbone_special_types::CockpitLeuchtmelder::BlinkerLinks(CockpitSide::B),
         "B_LM_BlinkerLinks",
     );
 
@@ -513,7 +524,7 @@ pub fn add_cockpit(backbone: &mut VehicleBackbone) {
     // richtungswender_locks.call(&true);
     // lm_check.call(&false);
 
-    backbone_types::CockpitLeuchtmelder::iter().for_each(|lm| {
+    backbone_special_types::CockpitLeuchtmelder::iter().for_each(|lm| {
         if let Some(a) = backbone.get(lm) {
             a.call(&false);
         }

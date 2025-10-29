@@ -7,54 +7,12 @@ use lotus_rt_extra::{
     vehicle_systems::BlinkerState,
 };
 
-use crate::{cockpit_types, systems_interface, traction};
+use crate::{cockpit_types, traction};
 use strum::EnumIter;
 
 // ================================================================================
 // General
 // ================================================================================
-
-#[derive(Hash, PartialEq, Eq)]
-pub struct SystemActive;
-
-impl TypedMapKey for SystemActive {
-    type Value = Observer<bool>;
-}
-
-// #[derive(Hash, PartialEq, Eq)]
-// pub struct TractionDirectionA;
-
-// impl TypedMapKey for TractionDirectionA {
-//     type Value = Observer<TractionDirection>;
-// }
-
-#[derive(Hash, PartialEq, Eq)]
-pub struct VehicleSpeed;
-
-impl TypedMapKey for VehicleSpeed {
-    type Value = Observer<f32>;
-}
-
-#[derive(Hash, PartialEq, Eq)]
-pub struct Voltage;
-
-impl TypedMapKey for Voltage {
-    type Value = Observer<f32>;
-}
-
-#[derive(Hash, PartialEq, Eq, Clone)]
-pub struct ActiveCockpit;
-
-impl TypedMapKey for ActiveCockpit {
-    type Value = Observer<systems_interface::ActiveCockpit>;
-}
-
-#[derive(Hash, PartialEq, Eq, Clone)]
-pub struct DriveMode;
-
-impl TypedMapKey for DriveMode {
-    type Value = Observer<bool>;
-}
 
 // ================================================================================
 // Cockpit Inputs

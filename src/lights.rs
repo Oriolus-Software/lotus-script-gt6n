@@ -1,10 +1,11 @@
 use lotus_extra::messages;
 use lotus_rt_extra::{
-    backbone::VehicleBackbone, sounds::StartStopSoundProperties, timers::BlinkRelayProperties,
+    backbone::VehicleBackbone, backbone_types, sounds::StartStopSoundProperties,
+    timers::BlinkRelayProperties,
 };
 use lotus_script::prelude::MessageTarget;
 
-use crate::backbone_types;
+use crate::backbone_special_types;
 
 const BLINKER_FIRST_ON_TIME: f32 = 0.2;
 const BLINKER_FIRST_OFF_TIME: f32 = 0.56;
@@ -12,13 +13,13 @@ const BLINKER_ON_TIME: f32 = 0.32;
 const BLINKER_OFF_TIME: f32 = 0.43;
 
 pub fn add_lights(backbone: &mut VehicleBackbone) {
-    let Some(mut voltage) = backbone.get(backbone_types::Voltage) else {
+    let Some(mut voltage) = backbone.get(backbone_types::ControlVoltage) else {
         return;
     };
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::CockpitMain),
+            &mut backbone.create_observer(backbone_special_types::Lights::CockpitMain),
             0.0,
             false,
         )
@@ -26,14 +27,14 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::CockpitBegleiter),
+            &mut backbone.create_observer(backbone_special_types::Lights::CockpitBegleiter),
             0.0,
             false,
         )
         .var_writer("A_CP_FstBelBegleiter");
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Instrumente),
+            &mut backbone.create_observer(backbone_special_types::Lights::Instrumente),
             0.0,
             false,
         )
@@ -41,7 +42,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Fahrgastraum),
+            &mut backbone.create_observer(backbone_special_types::Lights::Fahrgastraum),
             0.0,
             false,
         )
@@ -49,7 +50,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Stand),
+            &mut backbone.create_observer(backbone_special_types::Lights::Stand),
             0.0,
             false,
         )
@@ -68,7 +69,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Abblend),
+            &mut backbone.create_observer(backbone_special_types::Lights::Abblend),
             0.0,
             false,
         )
@@ -76,7 +77,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Fern),
+            &mut backbone.create_observer(backbone_special_types::Lights::Fern),
             0.0,
             false,
         )
@@ -84,7 +85,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Rueck),
+            &mut backbone.create_observer(backbone_special_types::Lights::Rueck),
             0.0,
             false,
         )
@@ -92,7 +93,7 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Rueckfahr),
+            &mut backbone.create_observer(backbone_special_types::Lights::Rueckfahr),
             0.0,
             false,
         )
@@ -100,14 +101,14 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     voltage
         .switch(
-            &mut backbone.create_observer(backbone_types::Lights::Brems),
+            &mut backbone.create_observer(backbone_special_types::Lights::Brems),
             0.0,
             false,
         )
         .var_writer("Bremslicht");
 
     let mut blinker_lights_state = backbone
-        .create_observer(backbone_types::LightBlinkerState)
+        .create_observer(backbone_special_types::LightBlinkerState)
         .blinker(
             BlinkRelayProperties::builder()
                 .interval(BLINKER_ON_TIME + BLINKER_OFF_TIME)
@@ -119,19 +120,19 @@ pub fn add_lights(backbone: &mut VehicleBackbone) {
 
     blinker_lights_state
         .left
-        .write_to(&backbone.create_observer(backbone_types::Lights::BlinkerLinks))
+        .write_to(&backbone.create_observer(backbone_special_types::Lights::BlinkerLinks))
         .to_float()
         .var_writer("BlinkerLeft");
 
     blinker_lights_state
         .right
-        .write_to(&backbone.create_observer(backbone_types::Lights::BlinkerRechts))
+        .write_to(&backbone.create_observer(backbone_special_types::Lights::BlinkerRechts))
         .to_float()
         .var_writer("BlinkerRight");
 
     blinker_lights_state
         .warning
-        .write_to(&backbone.create_observer(backbone_types::Lights::LmWarnblinker));
+        .write_to(&backbone.create_observer(backbone_special_types::Lights::LmWarnblinker));
 
     blinker_lights_state.blinker_relay.start_stop_sound(
         StartStopSoundProperties::builder()

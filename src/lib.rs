@@ -22,7 +22,7 @@ use crate::{doors::add_doors, passenger_elements::add_passenger_elements};
 
 // use crate::systems_interface::Interface;
 
-pub mod backbone_types;
+pub mod backbone_special_types;
 pub mod cockpit;
 pub mod cockpit_types;
 pub mod couplings;

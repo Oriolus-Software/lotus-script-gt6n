@@ -1,5 +1,6 @@
 use lotus_rt_extra::{
     backbone::VehicleBackbone,
+    backbone_types,
     brake::{
         BrakeCombinationElement, BrakeCombinationProperties, RailBrakeProperties,
         SandingUnitProperties, brake_combination,
@@ -13,7 +14,7 @@ use lotus_rt_extra::{
 };
 use lotus_script::{log, vehicle::Axle};
 
-use crate::backbone_types;
+use crate::backbone_special_types;
 
 const VMAX: f32 = 60.0 / 3.6;
 const VMAX_BACK: f32 = 15.0 / 3.6;
@@ -36,12 +37,15 @@ pub struct TractionUnit {
 }
 
 pub fn add_traction(backbone: &mut VehicleBackbone) {
-    let mut direction = backbone.create_observer(backbone_types::TractionDirection);
-    let mut target = backbone.create_observer(backbone_types::TractionFloat::Target);
-    let mut federspeicher = backbone.create_observer(backbone_types::TractionBool::Federspeicher);
-    let mut mg: Observer<bool> = backbone.create_observer(backbone_types::TractionBool::MgBremse);
-    let mut speed: Observer<f32> = backbone.create_observer(backbone_types::TractionFloat::Speed);
-    let mut sanden = backbone.create_observer(backbone_types::TractionBool::Sanden);
+    let mut direction = backbone.create_observer(backbone_special_types::TractionDirection);
+    let mut target = backbone.create_observer(backbone_special_types::TractionFloat::Target);
+    let mut federspeicher =
+        backbone.create_observer(backbone_special_types::TractionBool::Federspeicher);
+    let mut mg: Observer<bool> =
+        backbone.create_observer(backbone_special_types::TractionBool::MgBremse);
+    let mut speed: Observer<f32> =
+        backbone.create_observer(backbone_special_types::TractionFloat::Speed);
+    let mut sanden = backbone.create_observer(backbone_special_types::TractionBool::Sanden);
 
     let traction_mode = Observer::<TractionUnitMode>::default();
 

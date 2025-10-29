@@ -3,7 +3,7 @@ use lotus_rt_extra::{
     cockpit_simple::{TimedButtonProperties, timed_button},
 };
 
-use crate::backbone_types;
+use crate::backbone_special_types;
 
 // #[derive(Debug, Clone)]
 // pub struct PassengerElementsState {
@@ -13,7 +13,7 @@ use crate::backbone_types;
 pub fn add_passenger_elements(backbone: &mut VehicleBackbone) {
     (0..4).for_each(|i| {
         backbone.insert(
-            backbone_types::PassengerDoorButtons::DoorRight(i as i8),
+            backbone_special_types::PassengerDoorButtons::DoorRight(i as i8),
             timed_button(
                 TimedButtonProperties::builder()
                     .input_event(format!("DoorButton{}", i + 1))
